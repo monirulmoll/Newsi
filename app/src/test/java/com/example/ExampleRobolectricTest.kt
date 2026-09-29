@@ -233,5 +233,110 @@ class ExampleRobolectricTest {
         )
         assertTrue(okOff)
         assertTrue(pyFile.readText().contains("Off"))
+
+        // Verify Selected File Replace (single option ON) and Merge (multiple options ON) keeping same target file name
+        val targetReplaceFile = File(context.filesDir, "game_target_config.cfg")
+        targetReplaceFile.writeText("ORIGINAL_DEFAULT_DATA=0\n")
+
+        val selectedFileA = File(context.filesDir, "aimbot_patch.cfg").apply {
+            writeText("AIMBOT_ENABLED=1\nFOV=120")
+        }
+        val selectedFileB = File(context.filesDir, "norecoil_patch.cfg").apply {
+            writeText("NORECOIL_ACTIVE=1\nSPREAD=0.0")
+        }
+
+        val spec1 = com.example.service.DynamicOverlayRegistry.OverlayItemSpec().apply {
+            id = 101L
+            type = "TOGGLE"
+            label = selectedFileA.name
+            customImagePath = selectedFileA.absolutePath
+            targetFilePath = targetReplaceFile.absolutePath
+            currentValue = "1"
+        }
+        val spec2 = com.example.service.DynamicOverlayRegistry.OverlayItemSpec().apply {
+            id = 102L
+            type = "SLIDER"
+            label = selectedFileB.name
+            customImagePath = selectedFileB.absolutePath
+            targetFilePath = targetReplaceFile.absolutePath
+            currentValue = "0"
+        }
+        com.example.service.DynamicOverlayRegistry.updateActiveOverlay(
+            "Test Panel",
+            "",
+            216,
+            290,
+            "#FFFFFF",
+            true,
+            listOf(spec1, spec2)
+        )
+
+        // 1. Single option ON -> replaces target file with selectedFileA keeping target file name
+        val okSingleReplace = writer.applyWidgetPatchSync(
+            context.filesDir,
+            "widget_101",
+            "TOGGLE",
+            targetReplaceFile.absolutePath,
+            "0x04",
+            "Off",
+            "On",
+            "1",
+            true,
+            selectedFileA.name,
+            selectedFileA.absolutePath
+        )
+        assertTrue(okSingleReplace)
+        assertEquals("game_target_config.cfg", targetReplaceFile.name)
+        assertEquals("AIMBOT_ENABLED=1\nFOV=120", targetReplaceFile.readText())
+
+        // 2. Multiple options ON (Toggle #101 + Slider #102 both active) -> original file removed & both selected files merged into targetReplaceFile
+        val okMultiMerge = writer.applyWidgetPatchSync(
+            context.filesDir,
+            "widget_102",
+            "SLIDER",
+            targetReplaceFile.absolutePath,
+            "0x08",
+            "Off",
+            "On",
+            "75",
+            true,
+            selectedFileB.name,
+            selectedFileB.absolutePath
+        )
+        assertTrue(okMultiMerge)
+        assertEquals("game_target_config.cfg", targetReplaceFile.name)
+        val mergedText = targetReplaceFile.readText()
+        assertTrue("Original content must be removed", !mergedText.contains("ORIGINAL_DEFAULT_DATA"))
+        assertTrue("First selected file must be in merged file", mergedText.contains("AIMBOT_ENABLED=1"))
+        assertTrue("Second selected file must be in merged file", mergedText.contains("NORECOIL_ACTIVE=1"))
+
+        // 3. Turn both options OFF -> restores original target file
+        writer.applyWidgetPatchSync(
+            context.filesDir,
+            "widget_101",
+            "TOGGLE",
+            targetReplaceFile.absolutePath,
+            "0x04",
+            "Off",
+            "On",
+            "0",
+            false,
+            selectedFileA.name,
+            selectedFileA.absolutePath
+        )
+        writer.applyWidgetPatchSync(
+            context.filesDir,
+            "widget_102",
+            "SLIDER",
+            targetReplaceFile.absolutePath,
+            "0x08",
+            "Off",
+            "On",
+            "0",
+            false,
+            selectedFileB.name,
+            selectedFileB.absolutePath
+        )
+        assertEquals("ORIGINAL_DEFAULT_DATA=0\n", targetReplaceFile.readText())
     }
 }

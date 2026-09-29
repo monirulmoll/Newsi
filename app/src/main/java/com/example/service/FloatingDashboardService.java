@@ -408,7 +408,8 @@ extends Service {
                 row.setGravity(16);
                 row.setPadding(this.dpToPx(8), this.dpToPx(4), this.dpToPx(8), this.dpToPx(4));
                 boolean defaultChecked = "1".equals(spec.currentValue) || "true".equalsIgnoreCase(spec.currentValue);
-                boolean syncedChecked = LocalConfigStateWriter.getInstance().detectInitialToggleState(this.getFilesDir(), spec.targetFilePath, spec.offPayloadHex, spec.onPayloadHex, defaultChecked);
+                boolean hasSelectedSourceFile = spec.customImagePath != null && !spec.customImagePath.trim().isEmpty() && new File(spec.customImagePath.trim()).exists();
+                boolean syncedChecked = hasSelectedSourceFile ? defaultChecked : LocalConfigStateWriter.getInstance().detectInitialToggleState(this.getFilesDir(), spec.targetFilePath, spec.offPayloadHex, spec.onPayloadHex, defaultChecked);
                 spec.currentValue = syncedChecked ? "1" : "0";
                 boolean[] isCheckedState = new boolean[]{syncedChecked};
                 LinearLayout textCol = new LinearLayout((Context)this);
@@ -458,7 +459,7 @@ extends Service {
                         SoundTriggerPlayer.playSoundTrigger((Context)this, (View)btn, latest.offSoundTrigger, latest.offCustomSoundPath);
                     }
                     String payload = isChecked ? latest.onPayloadHex : latest.offPayloadHex;
-                    LocalConfigStateWriter.getInstance().applyWidgetPatchAsync(this.getFilesDir(), "widget_" + latest.id, "TOGGLE", latest.targetFilePath, latest.byteOffsetHex, latest.offPayloadHex, latest.onPayloadHex, payload, isChecked, latest.label);
+                    LocalConfigStateWriter.getInstance().applyWidgetPatchAsync(this.getFilesDir(), "widget_" + latest.id, "TOGGLE", latest.targetFilePath, latest.byteOffsetHex, latest.offPayloadHex, latest.onPayloadHex, payload, isChecked, latest.label, latest.customImagePath);
                 });
                 View.OnClickListener rowClick = v -> toggleSwitch.setChecked(!toggleSwitch.isChecked());
                 onOffBadge.setOnClickListener(rowClick);
@@ -499,13 +500,14 @@ extends Service {
                 seekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener(){
 
                     public void onProgressChanged(SeekBar sb, int progress, boolean fromUser) {
-                        labelTv.setText((CharSequence)(spec.label + " (0-" + maxVal + "): " + progress));
-                        spec.currentValue = String.valueOf(progress);
+                        DynamicOverlayRegistry.OverlayItemSpec latest = DynamicOverlayRegistry.getSpecById(spec.id, spec);
+                        labelTv.setText((CharSequence)(latest.label + " (0-" + maxVal + "): " + progress));
+                        spec.currentValue = latest.currentValue = String.valueOf(progress);
                         if (fromUser) {
                             if (progress == 0) {
-                                SoundTriggerPlayer.playSoundTrigger((Context)FloatingDashboardService.this, (View)sb, spec.offSoundTrigger, spec.offCustomSoundPath);
+                                SoundTriggerPlayer.playSoundTrigger((Context)FloatingDashboardService.this, (View)sb, latest.offSoundTrigger, latest.offCustomSoundPath);
                             }
-                            LocalConfigStateWriter.getInstance().applyWidgetPatchAsync(FloatingDashboardService.this.getFilesDir(), "widget_" + spec.id, "SLIDER", spec.targetFilePath, spec.byteOffsetHex, spec.offPayloadHex, spec.onPayloadHex, String.valueOf(progress), progress > 0, spec.label);
+                            LocalConfigStateWriter.getInstance().applyWidgetPatchAsync(FloatingDashboardService.this.getFilesDir(), "widget_" + latest.id, "SLIDER", latest.targetFilePath, latest.byteOffsetHex, latest.offPayloadHex, latest.onPayloadHex, String.valueOf(progress), progress > 0, latest.label, latest.customImagePath);
                         }
                     }
 
@@ -656,7 +658,8 @@ extends Service {
             }
         }
         boolean defaultBtnOn = "1".equals(spec.currentValue) || "true".equalsIgnoreCase(spec.currentValue);
-        boolean syncedBtnOn = LocalConfigStateWriter.getInstance().detectInitialToggleState(this.getFilesDir(), spec.targetFilePath, spec.offPayloadHex, spec.onPayloadHex, defaultBtnOn);
+        boolean hasBtnSourceFile = spec.customImagePath != null && !spec.customImagePath.trim().isEmpty() && new File(spec.customImagePath.trim()).exists();
+        boolean syncedBtnOn = hasBtnSourceFile ? defaultBtnOn : LocalConfigStateWriter.getInstance().detectInitialToggleState(this.getFilesDir(), spec.targetFilePath, spec.offPayloadHex, spec.onPayloadHex, defaultBtnOn);
         spec.currentValue = syncedBtnOn ? "1" : "0";
         boolean[] isBtnOn = new boolean[]{syncedBtnOn};
         LinearLayout btnRow = new LinearLayout((Context)this);
@@ -706,7 +709,7 @@ extends Service {
                 this.openLinkUrl(latest.linkUrl);
             }
             String payload = isBtnOn[0] ? latest.onPayloadHex : latest.offPayloadHex;
-            LocalConfigStateWriter.getInstance().applyWidgetPatchAsync(this.getFilesDir(), "widget_" + latest.id, "BUTTON", latest.targetFilePath, latest.byteOffsetHex, latest.offPayloadHex, latest.onPayloadHex, payload, isBtnOn[0], latest.label);
+            LocalConfigStateWriter.getInstance().applyWidgetPatchAsync(this.getFilesDir(), "widget_" + latest.id, "BUTTON", latest.targetFilePath, latest.byteOffsetHex, latest.offPayloadHex, latest.onPayloadHex, payload, isBtnOn[0], latest.label, latest.customImagePath);
         };
         btnRow.setOnClickListener(clickListener);
         pillBadge.setOnClickListener(clickListener);

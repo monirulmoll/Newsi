@@ -2,7 +2,6 @@ package com.example.ui
 
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -24,6 +23,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.ContentCopy
@@ -61,6 +61,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.CanvasComponentEntity
+import java.io.File
 
 private val DockBg = Color(0xFF0E1528)
 private val DockCardBorder = Color(0xFF233052)
@@ -68,6 +69,23 @@ private val DockInputBg = Color(0xFF131C33)
 private val DockIndigo = Color(0xFF5B46F6)
 private val DockPurple = Color(0xFF7C3AED)
 private val DockTextSecondary = Color(0xFF94A3B8)
+
+private fun resolveDocumentUriToStoragePath(uri: Uri, fallback: String): String {
+    val rawPath = uri.path ?: return fallback
+    val primaryIndex = rawPath.indexOf("primary:")
+    if (primaryIndex >= 0) {
+        val relative = rawPath.substring(primaryIndex + "primary:".length).trimStart('/')
+        return "/storage/emulated/0/$relative"
+    }
+    val colonIndex = rawPath.lastIndexOf(':')
+    if (colonIndex >= 0 && colonIndex < rawPath.length - 1) {
+        val relative = rawPath.substring(colonIndex + 1).trimStart('/')
+        if (relative.isNotEmpty()) {
+            return "/storage/emulated/0/$relative"
+        }
+    }
+    return rawPath.ifBlank { fallback }
+}
 
 @Composable
 fun PropertyInspectorBottomDock(
@@ -120,6 +138,9 @@ fun ComponentPropertyInspectorSheet(
 ) {
     var activeTab by remember { mutableStateOf("General") }
     var label by remember(component.id, component.label) { mutableStateOf(component.label) }
+    var customSourceFilePath by remember(component.id, component.customImagePath) {
+        mutableStateOf(component.customImagePath)
+    }
     var posX by remember(component.id, component.posXDp) { mutableStateOf(component.posXDp.toString()) }
     var posY by remember(component.id, component.posYDp) { mutableStateOf(component.posYDp.toString()) }
     var widthDp by remember(component.id, component.widthDp) { mutableStateOf(component.widthDp.toString()) }
@@ -132,25 +153,45 @@ fun ComponentPropertyInspectorSheet(
     var currentValue by remember(component.id, component.currentValue) { mutableStateOf(component.currentValue) }
     var targetFile by remember(component.id, component.targetFilePath) { mutableStateOf(component.targetFilePath) }
 
-    val imagePickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.PickVisualMedia()
+    // Directory icon on Widget Name / Label selects ANY source file to replace/merge onto Target Path
+    val sourceFilePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
     ) { uri ->
         if (uri != null) {
             onPickImageUri(uri)
         }
     }
 
-    val documentPickerLauncher = rememberLauncherForActivityResult(
+    // Directory icon on Target Path selects the destination target file path
+    val targetDocumentPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri ->
         if (uri != null) {
-            targetFile = uri.path ?: targetFile
+            val resolvedPath = resolveDocumentUriToStoragePath(uri, targetFile)
+            targetFile = resolvedPath
+            val updated = component.copy(
+                label = label.trim().ifEmpty { component.label },
+                customImagePath = customSourceFilePath.trim(),
+                posXDp = posX.toIntOrNull()?.coerceAtLeast(0) ?: component.posXDp,
+                posYDp = posY.toIntOrNull()?.coerceAtLeast(0) ?: component.posYDp,
+                widthDp = widthDp.toIntOrNull()?.coerceIn(48, 400) ?: component.widthDp,
+                heightDp = heightDp.toIntOrNull()?.coerceIn(32, 300) ?: component.heightDp,
+                byteOffsetHex = byteOffset.trim().ifEmpty { "0x04" },
+                onPayloadHex = onPayload.trim().ifEmpty { "On" },
+                offPayloadHex = offPayload.trim().ifEmpty { "Off" },
+                bgColorHex = bgHex.trim().ifEmpty { "#131C33" },
+                textColorHex = textHex.trim().ifEmpty { "#FFFFFF" },
+                currentValue = currentValue.trim(),
+                targetFilePath = resolvedPath.trim()
+            )
+            onSaveComponent(updated)
         }
     }
 
     fun buildUpdated(): CanvasComponentEntity {
         return component.copy(
             label = label.trim().ifEmpty { component.label },
+            customImagePath = customSourceFilePath.trim(),
             posXDp = posX.toIntOrNull()?.coerceAtLeast(0) ?: component.posXDp,
             posYDp = posY.toIntOrNull()?.coerceAtLeast(0) ?: component.posYDp,
             widthDp = widthDp.toIntOrNull()?.coerceIn(48, 400) ?: component.widthDp,
@@ -189,7 +230,7 @@ fun ComponentPropertyInspectorSheet(
                     .align(Alignment.CenterHorizontally)
             )
 
-            // Header Row matching screenshot ("File Picker Widget / Switch Widget" + "Widget #X" + Close '✕')
+            // Header Row ("Switch/Button/Slider Widget" + "Panel Name & Logo" + Close '✕')
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -226,7 +267,7 @@ fun ComponentPropertyInspectorSheet(
                             overflow = TextOverflow.Ellipsis
                         )
                         Text(
-                            text = "Configure widget properties & target path",
+                            text = "Select source file & target path to replace/merge on trigger",
                             color = DockTextSecondary,
                             fontSize = 11.sp,
                             maxLines = 1,
@@ -269,7 +310,7 @@ fun ComponentPropertyInspectorSheet(
                 }
             }
 
-            // 3 Tabs: General | Style | Advanced (Matching Screenshot)
+            // 3 Tabs: General | Style | Advanced
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -299,23 +340,157 @@ fun ComponentPropertyInspectorSheet(
 
             when (activeTab) {
                 "General" -> {
-                    // 1. Widget Name / Label
-                    InspectorFieldRow(
-                        title = "Widget Name / Label",
-                        leadingIcon = Icons.Default.Edit,
-                        value = label,
-                        onValueChange = {
-                            label = it
-                            onSaveComponent(buildUpdated())
-                        },
-                        placeholder = "Enter widget name...",
-                        testTag = "inspector_label_input",
-                        trailingFolderClick = {
-                            imagePickerLauncher.launch(
-                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                            )
+                    val hasSelectedFile = customSourceFilePath.isNotBlank()
+                    val selectedFileName = remember(customSourceFilePath, label) {
+                        if (customSourceFilePath.isNotBlank()) {
+                            File(customSourceFilePath).name.ifBlank { label }
+                        } else {
+                            label
                         }
-                    )
+                    }
+
+                    // 1. Widget Name / Label OR Selected File Display (hides pencil & text input once a file is selected!)
+                    if (hasSelectedFile) {
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "Widget Name / Label",
+                                    color = Color(0xFFCBD5E1),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                Surface(
+                                    color = Color(0xFF064E3B),
+                                    border = BorderStroke(1.dp, Color(0xFF10B981)),
+                                    shape = RoundedCornerShape(99.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.CheckCircle,
+                                            contentDescription = "File Selected",
+                                            tint = Color(0xFF34D399),
+                                            modifier = Modifier.size(12.dp)
+                                        )
+                                        Text(
+                                            text = "File Selected",
+                                            color = Color(0xFF34D399),
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.ExtraBold
+                                        )
+                                    }
+                                }
+                            }
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                // Pencil icon and editable text box are removed and replaced by the selected file name box
+                                Surface(
+                                    shape = RoundedCornerShape(10.dp),
+                                    color = Color(0xFF0F292A),
+                                    border = BorderStroke(1.5.dp, Color(0xFF10B981)),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clickable {
+                                            sourceFilePickerLauncher.launch(arrayOf("*/*"))
+                                        }
+                                        .testTag("inspector_label_input")
+                                ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = "FILE SELECTED (READY TO REPLACE / MERGE)",
+                                                color = Color(0xFF34D399),
+                                                fontSize = 9.sp,
+                                                fontWeight = FontWeight.ExtraBold
+                                            )
+                                            Spacer(modifier = Modifier.height(2.dp))
+                                            Text(
+                                                text = selectedFileName,
+                                                color = Color.White,
+                                                fontSize = 13.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                        }
+                                        IconButton(
+                                            onClick = {
+                                                customSourceFilePath = ""
+                                                onSaveComponent(
+                                                    buildUpdated().copy(customImagePath = "")
+                                                )
+                                            },
+                                            modifier = Modifier
+                                                .size(24.dp)
+                                                .testTag("inspector_clear_selected_file_button")
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Close,
+                                                contentDescription = "Clear selected file",
+                                                tint = Color(0xFF94A3B8),
+                                                modifier = Modifier.size(15.dp)
+                                            )
+                                        }
+                                    }
+                                }
+
+                                // Directory icon to pick/change the selected file
+                                Box(
+                                    modifier = Modifier
+                                        .size(42.dp)
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(
+                                            Brush.linearGradient(listOf(DockIndigo, DockPurple))
+                                        )
+                                        .clickable {
+                                            sourceFilePickerLauncher.launch(arrayOf("*/*"))
+                                        }
+                                        .testTag("inspector_select_source_file_button"),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Folder,
+                                        contentDescription = "Select File",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(19.dp)
+                                    )
+                                }
+                            }
+                        }
+                    } else {
+                        InspectorFieldRow(
+                            title = "Widget Name / Label",
+                            leadingIcon = Icons.Default.Edit,
+                            value = label,
+                            onValueChange = {
+                                label = it
+                                onSaveComponent(buildUpdated())
+                            },
+                            placeholder = "Enter widget name or tap folder icon to select file...",
+                            testTag = "inspector_label_input",
+                            trailingFolderTestTag = "inspector_select_source_file_button",
+                            trailingFolderClick = {
+                                sourceFilePickerLauncher.launch(arrayOf("*/*"))
+                            }
+                        )
+                    }
 
                     // 2. Target Path (with Folder picker button)
                     InspectorFieldRow(
@@ -328,8 +503,9 @@ fun ComponentPropertyInspectorSheet(
                         },
                         placeholder = "/storage/emulated/0/app.apk",
                         testTag = "inspector_target_path_input",
+                        trailingFolderTestTag = "inspector_select_target_path_button",
                         trailingFolderClick = {
-                            documentPickerLauncher.launch(arrayOf("*/*"))
+                            targetDocumentPickerLauncher.launch(arrayOf("*/*"))
                         }
                     )
 
@@ -508,7 +684,7 @@ fun ComponentPropertyInspectorSheet(
                 }
             }
 
-            // Full-width gradient "✓ Save Changes" Button matching screenshot
+            // Full-width gradient "✓ Save Changes" Button
             Button(
                 onClick = { onSaveComponent(buildUpdated()) },
                 colors = ButtonDefaults.buttonColors(containerColor = DockIndigo),
@@ -544,6 +720,7 @@ private fun InspectorFieldRow(
     onValueChange: (String) -> Unit,
     placeholder: String,
     testTag: String,
+    trailingFolderTestTag: String? = null,
     trailingFolderClick: (() -> Unit)?
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -603,12 +780,16 @@ private fun InspectorFieldRow(
                         .background(
                             Brush.linearGradient(listOf(DockIndigo, DockPurple))
                         )
-                        .clickable { trailingFolderClick() },
+                        .clickable { trailingFolderClick() }
+                        .then(
+                            if (trailingFolderTestTag != null) Modifier.testTag(trailingFolderTestTag)
+                            else Modifier
+                        ),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = Icons.Default.Folder,
-                        contentDescription = "Browse",
+                        contentDescription = "Select File",
                         tint = Color.White,
                         modifier = Modifier.size(18.dp)
                     )

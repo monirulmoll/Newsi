@@ -797,11 +797,37 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             if (editedComponent != null) {
                 studioDao.updateComponent(editedComponent)
             }
-            val updatedProj = currentProject.copy(updatedAt = System.currentTimeMillis())
+            val updatedProj = currentProject.copy(
+                defaultTargetFilePath = editedComponent?.targetFilePath?.takeIf { it.isNotBlank() } ?: currentProject.defaultTargetFilePath,
+                updatedAt = System.currentTimeMillis()
+            )
             studioDao.updateProject(updatedProj)
             val currentList = studioDao.getComponentsForProjectSync(updatedProj.id)
             for (comp in currentList) {
                 studioDao.updateComponent(comp)
+            }
+            syncOverlayRegistryInBackground(updatedProj)
+            if (editedComponent != null && editedComponent.customImagePath.isNotBlank()) {
+                val isCurrentlyActive = if (editedComponent.type == "SLIDER") {
+                    (editedComponent.currentValue.toIntOrNull() ?: 0) > 0
+                } else {
+                    editedComponent.currentValue == "1" || editedComponent.currentValue.equals("true", ignoreCase = true)
+                }
+                withContext(Dispatchers.IO) {
+                    stateWriter.applyWidgetPatchSync(
+                        appContext.filesDir,
+                        "widget_${editedComponent.id}",
+                        editedComponent.type,
+                        editedComponent.targetFilePath,
+                        editedComponent.byteOffsetHex,
+                        editedComponent.offPayloadHex,
+                        editedComponent.onPayloadHex,
+                        editedComponent.currentValue,
+                        isCurrentlyActive,
+                        editedComponent.label,
+                        editedComponent.customImagePath
+                    )
+                }
             }
             _uiState.update {
                 it.copy(
@@ -898,27 +924,91 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    private fun resolvePickedUriDisplayName(uri: Uri, fallbackName: String): String {
+        try {
+            appContext.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                val nameIndex = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                if (nameIndex >= 0 && cursor.moveToFirst()) {
+                    val displayName = cursor.getString(nameIndex)
+                    if (!displayName.isNullOrBlank()) {
+                        return displayName.trim()
+                    }
+                }
+            }
+        } catch (_: Exception) {
+        }
+        val rawSeg = uri.lastPathSegment ?: uri.path ?: fallbackName
+        val afterColon = rawSeg.substringAfterLast(':')
+        val afterSlash = afterColon.substringAfterLast('/')
+        return afterSlash.trim().ifEmpty { fallbackName }
+    }
+
     /**
-     * Copies a user-picked image from the Android Photo Picker into local app storage
-     * and assigns its path to the selected component's customImagePath property.
+     * Copies a user-picked file from the Android Document/File Picker into local app storage
+     * with its original filename, updates the widget's label to the file's name, and immediately
+     * configures/replaces or merges onto the target path when active.
      */
     fun assignPickedImageToComponent(component: CanvasComponentEntity, uri: Uri) {
         viewModelScope.launch {
             try {
-                val imgDir = File(appContext.filesDir, "component_images").apply { mkdirs() }
-                val destFile = File(imgDir, "img_${component.id}_${System.currentTimeMillis()}.jpg")
-                appContext.contentResolver.openInputStream(uri)?.use { input ->
-                    FileOutputStream(destFile).use { output ->
-                        input.copyTo(output)
+                val pickedFileName = withContext(Dispatchers.IO) {
+                    resolvePickedUriDisplayName(uri, "selected_file_${component.id}.bin")
+                }
+                val cleanFileName = pickedFileName.replace(Regex("[\\\\/:*?\"<>|]"), "_").ifBlank {
+                    "selected_file_${component.id}.bin"
+                }
+                val compFileDir = File(appContext.filesDir, "component_files/comp_${component.id}").apply {
+                    if (exists()) {
+                        listFiles()?.forEach { it.delete() }
+                    } else {
+                        mkdirs()
                     }
                 }
-                updateComponent(component.copy(customImagePath = destFile.absolutePath))
+                val destFile = File(compFileDir, cleanFileName)
+                withContext(Dispatchers.IO) {
+                    appContext.contentResolver.openInputStream(uri)?.use { input ->
+                        FileOutputStream(destFile).use { output ->
+                            input.copyTo(output)
+                        }
+                    }
+                }
+                val activeVal = if (component.type == ComponentWidgetType.SLIDER.name) {
+                    val cur = component.currentValue.toIntOrNull() ?: 0
+                    if (cur > 0) cur.toString() else "50"
+                } else {
+                    "1"
+                }
+                val updatedComp = component.copy(
+                    label = cleanFileName,
+                    customImagePath = destFile.absolutePath,
+                    currentValue = activeVal
+                )
+                studioDao.updateComponent(updatedComp)
+                syncOverlayRegistryInBackground(_uiState.value.activeProject)
+                withContext(Dispatchers.IO) {
+                    stateWriter.applyWidgetPatchSync(
+                        appContext.filesDir,
+                        "widget_${updatedComp.id}",
+                        updatedComp.type,
+                        updatedComp.targetFilePath,
+                        updatedComp.byteOffsetHex,
+                        updatedComp.offPayloadHex,
+                        updatedComp.onPayloadHex,
+                        activeVal,
+                        true,
+                        updatedComp.label,
+                        updatedComp.customImagePath
+                    )
+                }
                 _uiState.update {
-                    it.copy(statusToast = "Custom image bound to '${component.label}'.")
+                    it.copy(
+                        customEditedKotlinFiles = emptyMap(),
+                        statusToast = "✅ File Selected: '$cleanFileName' → Configured for Target Path"
+                    )
                 }
             } catch (e: Exception) {
                 _uiState.update {
-                    it.copy(statusToast = "Could not import image: ${e.message}")
+                    it.copy(statusToast = "Could not import file: ${e.message}")
                 }
             }
         }
@@ -1060,20 +1150,23 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         updateComponent(updatedComp)
 
         viewModelScope.launch(Dispatchers.IO) {
+            studioDao.updateComponent(updatedComp)
+            syncOverlayRegistryInBackground(_uiState.value.activeProject)
             val ok = stateWriter.applyWidgetPatchSync(
                 appContext.filesDir,
-                "widget_${component.id}",
-                component.type,
-                component.targetFilePath,
-                component.byteOffsetHex,
-                component.offPayloadHex,
-                component.onPayloadHex,
+                "widget_${updatedComp.id}",
+                updatedComp.type,
+                updatedComp.targetFilePath,
+                updatedComp.byteOffsetHex,
+                updatedComp.offPayloadHex,
+                updatedComp.onPayloadHex,
                 payloadToWrite,
                 isTurningOn,
-                component.label
+                updatedComp.label,
+                updatedComp.customImagePath
             )
-            val resolvedFile = stateWriter.resolveTargetFile(appContext.filesDir, component.targetFilePath)
-            val preview = stateWriter.readTargetFilePreview(appContext.filesDir, component.targetFilePath)
+            val resolvedFile = stateWriter.resolveTargetFile(appContext.filesDir, updatedComp.targetFilePath)
+            val preview = stateWriter.readTargetFilePreview(appContext.filesDir, updatedComp.targetFilePath)
             _uiState.update {
                 it.copy(
                     statusToast = if (ok) {

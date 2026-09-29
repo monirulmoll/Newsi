@@ -26,6 +26,7 @@ import android.os.Looper;
 import android.os.Process;
 import androidx.core.content.ContextCompat;
 import com.example.engine.ConfigParameterSpec;
+import com.example.service.DynamicOverlayRegistry;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
@@ -359,13 +360,21 @@ public class LocalConfigStateWriter {
     }
 
     public void applyWidgetPatchAsync(File fallbackDir, String widgetKey, String widgetType, String targetFilePath, String byteOffsetHex, String originalValue, String changeValue, String liveValue, boolean isActive, String componentLabel) {
-        this.fileIoExecutor.execute(() -> this.applyWidgetPatchSync(fallbackDir, widgetKey, widgetType, targetFilePath, byteOffsetHex, originalValue, changeValue, liveValue, isActive, componentLabel));
+        this.fileIoExecutor.execute(() -> this.applyWidgetPatchSync(fallbackDir, widgetKey, widgetType, targetFilePath, byteOffsetHex, originalValue, changeValue, liveValue, isActive, componentLabel, null));
+    }
+
+    public void applyWidgetPatchAsync(File fallbackDir, String widgetKey, String widgetType, String targetFilePath, String byteOffsetHex, String originalValue, String changeValue, String liveValue, boolean isActive, String componentLabel, String customSourceFilePath) {
+        this.fileIoExecutor.execute(() -> this.applyWidgetPatchSync(fallbackDir, widgetKey, widgetType, targetFilePath, byteOffsetHex, originalValue, changeValue, liveValue, isActive, componentLabel, customSourceFilePath));
+    }
+
+    public boolean applyWidgetPatchSync(File fallbackDir, String widgetKey, String widgetType, String targetFilePath, String byteOffsetHex, String originalValue, String changeValue, String liveValue, boolean isActive, String componentLabel) {
+        return this.applyWidgetPatchSync(fallbackDir, widgetKey, widgetType, targetFilePath, byteOffsetHex, originalValue, changeValue, liveValue, isActive, componentLabel, null);
     }
 
     /*
      * WARNING - Removed try catching itself - possible behaviour change.
      */
-    public boolean applyWidgetPatchSync(File fallbackDir, String widgetKey, String widgetType, String targetFilePath, String byteOffsetHex, String originalValue, String changeValue, String liveValue, boolean isActive, String componentLabel) {
+    public boolean applyWidgetPatchSync(File fallbackDir, String widgetKey, String widgetType, String targetFilePath, String byteOffsetHex, String originalValue, String changeValue, String liveValue, boolean isActive, String componentLabel, String customSourceFilePath) {
         ConfigParameterSpec.StateSnapshot snapshot;
         long startNs = System.nanoTime();
         int offset = this.parseOffsetString(byteOffsetHex);
@@ -385,7 +394,11 @@ public class LocalConfigStateWriter {
                 if (parent != null && !parent.exists()) {
                     parent.mkdirs();
                 }
-                if (useTextScriptPatch) {
+                String fileReplaceOrMergeSummary = this.tryApplySelectedFileReplaceOrMergeLocked(fallbackDir, target, safeKey, type, live, isActive, customSourceFilePath);
+                if (fileReplaceOrMergeSummary != null) {
+                    replacementText = fileReplaceOrMergeSummary;
+                    this.lastWrittenByWidget.put(safeKey, replacementText);
+                } else if (useTextScriptPatch) {
                     this.patchTextOrPythonFileLocked(target, safeKey, orig, chg, replacementText, isActive);
                 } else {
                     byte[] payloadBytes = this.parsePayloadBytes(replacementText);
@@ -410,6 +423,196 @@ public class LocalConfigStateWriter {
         }
         long elapsedUs = (System.nanoTime() - startNs) / 1000L;
         this.notifyWriteSuccess(componentLabel, offset, previousVal, replacementText, elapsedUs, snapshot);
+        return true;
+    }
+
+    private String tryApplySelectedFileReplaceOrMergeLocked(File fallbackDir, File target, String safeKey, String widgetType, String liveValue, boolean isActive, String explicitSourceFilePath) throws IOException {
+        List<DynamicOverlayRegistry.OverlayItemSpec> registrySpecs = DynamicOverlayRegistry.getActiveItems();
+        ArrayList<File> activeSourceFiles = new ArrayList<File>();
+        boolean anyWidgetHasSourceFileForTarget = false;
+        boolean currentWidgetFoundInRegistry = false;
+
+        if (registrySpecs != null) {
+            for (DynamicOverlayRegistry.OverlayItemSpec spec : registrySpecs) {
+                if (spec == null) continue;
+                String specKey = "widget_" + spec.id;
+                boolean isCurrentTriggeredWidget = specKey.equals(safeKey);
+                if (isCurrentTriggeredWidget) {
+                    currentWidgetFoundInRegistry = true;
+                    spec.currentValue = "SLIDER".equalsIgnoreCase(widgetType) ? (liveValue != null && !liveValue.isEmpty() ? liveValue : (isActive ? "50" : "0")) : (isActive ? "1" : "0");
+                    if (explicitSourceFilePath != null && !explicitSourceFilePath.trim().isEmpty()) {
+                        spec.customImagePath = explicitSourceFilePath.trim();
+                    }
+                }
+                File specTarget = this.resolveTargetFile(fallbackDir, spec.targetFilePath);
+                boolean sameTarget = specTarget.getAbsolutePath().equals(target.getAbsolutePath());
+                if (!sameTarget) continue;
+
+                String srcPath = isCurrentTriggeredWidget && explicitSourceFilePath != null && !explicitSourceFilePath.trim().isEmpty() ? explicitSourceFilePath.trim() : (spec.customImagePath != null ? spec.customImagePath.trim() : "");
+                if (srcPath.isEmpty()) continue;
+                File srcFile = new File(srcPath);
+                if (!srcFile.exists() || !srcFile.isFile()) continue;
+
+                anyWidgetHasSourceFileForTarget = true;
+                boolean specActive;
+                if (isCurrentTriggeredWidget) {
+                    specActive = isActive;
+                } else if ("SLIDER".equalsIgnoreCase(spec.type)) {
+                    int v = 0;
+                    try {
+                        v = Integer.parseInt(spec.currentValue != null ? spec.currentValue.trim() : "0");
+                    }
+                    catch (Exception ignored) {
+                    }
+                    specActive = v > 0;
+                } else {
+                    specActive = "1".equals(spec.currentValue) || "true".equalsIgnoreCase(spec.currentValue);
+                }
+
+                if (specActive) {
+                    activeSourceFiles.add(srcFile);
+                }
+            }
+        }
+
+        if (!currentWidgetFoundInRegistry && explicitSourceFilePath != null && !explicitSourceFilePath.trim().isEmpty()) {
+            File explicitSrc = new File(explicitSourceFilePath.trim());
+            if (explicitSrc.exists() && explicitSrc.isFile()) {
+                anyWidgetHasSourceFileForTarget = true;
+                if (isActive) {
+                    activeSourceFiles.add(explicitSrc);
+                }
+            }
+        }
+
+        if (!anyWidgetHasSourceFileForTarget) {
+            return null;
+        }
+
+        File backupDir = new File(fallbackDir, "original_target_backups");
+        if (!backupDir.exists()) {
+            backupDir.mkdirs();
+        }
+        String targetHashKey = Integer.toHexString(target.getAbsolutePath().hashCode()) + "_" + target.getName().replaceAll("[^a-zA-Z0-9._-]", "_");
+        File backupFile = new File(backupDir, targetHashKey + ".orig_backup");
+        File markerFile = new File(backupDir, targetHashKey + ".replaced_marker");
+
+        // Back up the original file at target path before replacing/merging it for the first time
+        if (target.exists() && target.isFile() && !markerFile.exists()) {
+            this.copyRawFileBytesLocked(target, backupFile);
+        }
+
+        if (activeSourceFiles.isEmpty()) {
+            // All options turned OFF: restore original target file if backed up
+            if (markerFile.exists()) {
+                if (target.exists()) {
+                    target.delete();
+                }
+                if (backupFile.exists()) {
+                    this.copyRawFileBytesLocked(backupFile, target);
+                    backupFile.delete();
+                }
+                markerFile.delete();
+                return "Restored Original (" + target.getName() + ")";
+            }
+            return "Original Kept (" + target.getName() + ")";
+        }
+
+        // Remove the original file at the target path so selected file(s) replace/merge with the exact same target name
+        if (target.exists()) {
+            target.delete();
+        }
+
+        if (activeSourceFiles.size() == 1) {
+            File singleSource = activeSourceFiles.get(0);
+            this.copyRawFileBytesLocked(singleSource, target);
+            if (!markerFile.exists()) {
+                try {
+                    markerFile.createNewFile();
+                }
+                catch (Exception ignored) {
+                }
+            }
+            return "Replaced " + target.getName() + " <= " + singleSource.getName();
+        }
+
+        // Multiple options ON: merge all selected files into target path with the exact same target filename
+        boolean mergeAsText = this.areAllFilesLikelyTextLocked(activeSourceFiles);
+        StringBuilder mergedNames = new StringBuilder();
+        try (FileOutputStream fos = new FileOutputStream(target, false);){
+            byte[] buf = new byte[8192];
+            for (int i = 0; i < activeSourceFiles.size(); ++i) {
+                File src = activeSourceFiles.get(i);
+                if (i > 0) {
+                    mergedNames.append(" + ");
+                }
+                mergedNames.append(src.getName());
+                byte lastByte = -1;
+                try (FileInputStream fis = new FileInputStream(src);){
+                    int read;
+                    while ((read = fis.read(buf)) != -1) {
+                        fos.write(buf, 0, read);
+                        if (read > 0) {
+                            lastByte = buf[read - 1];
+                        }
+                    }
+                }
+                if (mergeAsText && i < activeSourceFiles.size() - 1 && lastByte != -1 && lastByte != 10) {
+                    fos.write(10);
+                }
+            }
+            fos.flush();
+            try {
+                fos.getFD().sync();
+            }
+            catch (Exception ignored) {
+            }
+        }
+        if (!markerFile.exists()) {
+            try {
+                markerFile.createNewFile();
+            }
+            catch (Exception ignored) {
+            }
+        }
+        return "Merged (" + activeSourceFiles.size() + " files: " + mergedNames + ") => " + target.getName();
+    }
+
+    private void copyRawFileBytesLocked(File source, File dest) throws IOException {
+        File parent = dest.getParentFile();
+        if (parent != null && !parent.exists()) {
+            parent.mkdirs();
+        }
+        try (FileInputStream fis = new FileInputStream(source);
+             FileOutputStream fos = new FileOutputStream(dest, false);){
+            int read;
+            byte[] buf = new byte[8192];
+            while ((read = fis.read(buf)) != -1) {
+                fos.write(buf, 0, read);
+            }
+            fos.flush();
+            try {
+                fos.getFD().sync();
+            }
+            catch (Exception ignored) {
+            }
+        }
+    }
+
+    private boolean areAllFilesLikelyTextLocked(List<File> files) {
+        for (File f : files) {
+            try (FileInputStream fis = new FileInputStream(f);){
+                byte[] sample = new byte[512];
+                int n = fis.read(sample);
+                for (int i = 0; i < n; ++i) {
+                    if (sample[i] != 0) continue;
+                    return false;
+                }
+            }
+            catch (Exception e) {
+                return false;
+            }
+        }
         return true;
     }
 
@@ -769,8 +972,9 @@ public class LocalConfigStateWriter {
         if (clean.startsWith("file://")) {
             clean = clean.substring("file://".length());
         }
-        if (clean.startsWith("primary:")) {
-            clean = "/storage/emulated/0/" + clean.substring("primary:".length());
+        int primaryIdx = clean.indexOf("primary:");
+        if (primaryIdx >= 0) {
+            clean = "/storage/emulated/0/" + clean.substring(primaryIdx + "primary:".length());
         }
         if (clean.isEmpty() || "studio_overlay_target.bin".equalsIgnoreCase(clean)) {
             return new File(fallbackDir, "studio_overlay_target.bin");
