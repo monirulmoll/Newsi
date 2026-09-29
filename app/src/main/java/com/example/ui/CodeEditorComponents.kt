@@ -192,6 +192,30 @@ class FloatingOverlayService : Service() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
+fun StudioEditCodeDialog(
+    project: StudioProjectEntity,
+    components: List<CanvasComponentEntity>,
+    initialFiles: Map<String, String>,
+    onDismiss: () -> Unit,
+    onCompileCodeToVisualScreen: (Map<String, String>) -> Unit,
+    onCompileCodeToApk: (Map<String, String>) -> Unit
+) {
+    CodeEditorScreen(
+        project = project,
+        files = initialFiles,
+        onApplyCodeToVisual = { updated, buildApk ->
+            if (buildApk) {
+                onCompileCodeToApk(updated)
+            } else {
+                onCompileCodeToVisualScreen(updated)
+            }
+        },
+        onClose = onDismiss
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
 fun CodeEditorScreen(
     project: StudioProjectEntity,
     files: Map<String, String>,

@@ -131,13 +131,25 @@ class MainActivity : ComponentActivity() {
                 val bundledStandaloneComponents by viewModel.bundledStandaloneComponents.collectAsStateWithLifecycle()
 
                 when (uiState.destination) {
-                    StudioDestination.WELCOME_SCREEN -> {
-                        StudioWelcomeModeScreen(
-                            hasStoragePermission = uiState.hasStoragePermission,
-                            hasOverlayPermission = uiState.hasOverlayPermission,
+                    StudioDestination.WELCOME_SCREEN,
+                    StudioDestination.PROJECT_LAUNCHER -> {
+                        StudioProjectLauncherScreen(
+                            uiState = uiState,
+                            projects = projects,
+                            defaultPathProvider = viewModel::getDefaultTargetFilePath,
+                            onOpenCreateDialog = { viewModel.openCreateProjectDialog(true) },
+                            onDismissCreateDialog = { viewModel.openCreateProjectDialog(false) },
+                            onCreateProject = viewModel::createNewBlankProject,
+                            onOpenExistingPicker = { viewModel.openExistingProjectsPicker(true) },
+                            onDismissExistingPicker = { viewModel.openExistingProjectsPicker(false) },
+                            onSelectProject = viewModel::openExistingProject,
+                            onDeleteProject = viewModel::deleteProject,
+                            onOpenEditProjectDialog = { proj -> viewModel.openEditProjectDialog(proj) },
+                            onDismissEditProjectDialog = { viewModel.openEditProjectDialog(null) },
+                            onSaveProjectConfiguration = viewModel::updateProjectNameAndLogo,
+                            onImportLogoUri = viewModel::importProjectLogoUri,
                             onRefreshPermissions = viewModel::refreshOverlayPermission,
-                            onSelectOfflineMode = viewModel::openOfflineManualMode,
-                            onSelectOnlineAiMode = viewModel::openOnlineAiMode
+                            onOpenOnlineAiMode = viewModel::openOnlineAiMode
                         )
                     }
 
@@ -197,27 +209,6 @@ class MainActivity : ComponentActivity() {
                                 }
                             )
                         }
-                    }
-
-                    StudioDestination.PROJECT_LAUNCHER -> {
-                        StudioProjectLauncherScreen(
-                            uiState = uiState,
-                            projects = projects,
-                            defaultPathProvider = viewModel::getDefaultTargetFilePath,
-                            onOpenCreateDialog = { viewModel.openCreateProjectDialog(true) },
-                            onDismissCreateDialog = { viewModel.openCreateProjectDialog(false) },
-                            onCreateProject = viewModel::createNewBlankProject,
-                            onOpenExistingPicker = { viewModel.openExistingProjectsPicker(true) },
-                            onDismissExistingPicker = { viewModel.openExistingProjectsPicker(false) },
-                            onSelectProject = viewModel::openExistingProject,
-                            onDeleteProject = viewModel::deleteProject,
-                            onOpenEditProjectDialog = { proj -> viewModel.openEditProjectDialog(proj) },
-                            onDismissEditProjectDialog = { viewModel.openEditProjectDialog(null) },
-                            onSaveProjectConfiguration = viewModel::updateProjectNameAndLogo,
-                            onImportLogoUri = viewModel::importProjectLogoUri,
-                            onRefreshPermissions = viewModel::refreshOverlayPermission,
-                            onOpenOnlineAiMode = viewModel::openOnlineAiMode
-                        )
                     }
 
                     StudioDestination.CANVAS_WORKSPACE -> {
@@ -358,10 +349,10 @@ fun StudioCanvasBuilderScreen(
 
     if (uiState.showEditFloatingPanelDialog) {
         var editedPanelTitle by remember(project.id, project.overlayTitle) {
-            mutableStateOf(project.overlayTitle)
+            mutableStateOf(project.overlayTitle.ifBlank { project.name })
         }
-        var editedFloatingLogoPath by remember(project.id, project.floatingLogoPath) {
-            mutableStateOf(project.floatingLogoPath)
+        var editedFloatingLogoPath by remember(project.id, project.floatingLogoPath, project.appLogoPath) {
+            mutableStateOf(project.floatingLogoPath.ifBlank { project.appLogoPath })
         }
 
         val floatingLogoPickerLauncher = rememberLauncherForActivityResult(
@@ -384,11 +375,27 @@ fun StudioCanvasBuilderScreen(
 
         AlertDialog(
             onDismissRequest = onDismissEditFloatingPanel,
+            containerColor = Color(0xFF0E1528),
+            titleContentColor = Color.White,
+            textContentColor = Color(0xFFE2E8F0),
             title = {
-                Text(
-                    text = "Edit Floating Panel Name & Goal Logo",
-                    fontWeight = FontWeight.Bold
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Edit,
+                        contentDescription = null,
+                        tint = Color(0xFF38BDF8),
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Text(
+                        text = "Edit Floating Window Name & Image",
+                        fontWeight = FontWeight.ExtraBold,
+                        fontSize = 16.sp,
+                        color = Color.White
+                    )
+                }
             },
             text = {
                 Column(
@@ -398,10 +405,75 @@ fun StudioCanvasBuilderScreen(
                         .verticalScroll(rememberScrollState())
                 ) {
                     Text(
-                        text = "When you click '✕' on the floating window, it transforms into a round ('Goal') floating bubble. Set a Goal Logo below, or leave the logo empty to display the Floating Window Name inside the round bubble.",
+                        text = "Customize the Floating Window header name and circular logo image. This image and name appear in the floating window header bar and inside the minimized round ('Goal') floating bubble.",
                         style = MaterialTheme.typography.bodySmall,
-                        color = Color(0xFF475569)
+                        color = Color(0xFF94A3B8)
                     )
+
+                    // Live Floating Header Preview
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = Color(0xFF2563EB),
+                        border = BorderStroke(1.dp, Color(0xFF60A5FA)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 10.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(26.dp)
+                                        .clip(CircleShape)
+                                        .background(Color(0xFF1D4ED8))
+                                        .border(BorderStroke(1.dp, Color.White), CircleShape),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    if (previewGoalBitmap != null) {
+                                        Image(
+                                            bitmap = previewGoalBitmap,
+                                            contentDescription = "Header Logo Preview",
+                                            contentScale = ContentScale.Crop,
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .clip(CircleShape)
+                                        )
+                                    } else {
+                                        Icon(
+                                            imageVector = Icons.Default.Image,
+                                            contentDescription = null,
+                                            tint = Color.White,
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                    }
+                                }
+                                Text(
+                                    text = editedPanelTitle.trim().ifEmpty {
+                                        project.name.trim().ifEmpty { "Floating Window" }
+                                    },
+                                    color = Color.White,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                            Text(
+                                text = "✕",
+                                color = Color.White,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
 
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
@@ -410,10 +482,10 @@ fun StudioCanvasBuilderScreen(
                     ) {
                         Box(
                             modifier = Modifier
-                                .size(64.dp)
+                                .size(68.dp)
                                 .clip(CircleShape)
                                 .background(Color(0xFF2563EB))
-                                .border(BorderStroke(2.dp, Color(0xFF0288D1)), CircleShape)
+                                .border(BorderStroke(2.dp, Color(0xFF38BDF8)), CircleShape)
                                 .clickable {
                                     floatingLogoPickerLauncher.launch(
                                         PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
@@ -448,26 +520,34 @@ fun StudioCanvasBuilderScreen(
                         }
 
                         Column(
-                            verticalArrangement = Arrangement.spacedBy(4.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp),
                             modifier = Modifier.weight(1f)
                         ) {
-                            OutlinedButton(
+                            Button(
                                 onClick = {
                                     floatingLogoPickerLauncher.launch(
                                         PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
                                     )
                                 },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF5B46F6)),
+                                shape = RoundedCornerShape(10.dp),
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .testTag("pick_floating_goal_logo_button")
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Image,
-                                    contentDescription = "Choose Floating Goal Logo",
+                                    contentDescription = "Choose Floating Window Image",
+                                    tint = Color.White,
                                     modifier = Modifier.size(16.dp)
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
-                                Text("Select Goal Logo", fontSize = 12.sp)
+                                Text(
+                                    text = if (editedFloatingLogoPath.isNotBlank()) "Change Window Image" else "Select Window Image",
+                                    color = Color.White,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
                             }
 
                             if (editedFloatingLogoPath.isNotBlank()) {
@@ -479,9 +559,10 @@ fun StudioCanvasBuilderScreen(
                                     modifier = Modifier.testTag("remove_floating_goal_logo_button")
                                 ) {
                                     Text(
-                                        text = "Remove Logo (Show Window Name)",
-                                        color = MaterialTheme.colorScheme.error,
-                                        fontSize = 11.sp
+                                        text = "Remove Image (Show Text Only)",
+                                        color = Color(0xFFF87171),
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.SemiBold
                                     )
                                 }
                             }
@@ -494,8 +575,8 @@ fun StudioCanvasBuilderScreen(
                             editedPanelTitle = it
                             onSaveFloatingPanelConfig(it, editedFloatingLogoPath)
                         },
-                        label = { Text("Floating Panel Name (Window Title)") },
-                        placeholder = { Text("Enter floating window name...") },
+                        label = { Text("Floating Window Name (Header Title)", color = Color(0xFF94A3B8)) },
+                        placeholder = { Text("Enter floating window name...", color = Color(0xFF64748B)) },
                         singleLine = true,
                         modifier = Modifier
                             .fillMaxWidth()
@@ -504,17 +585,23 @@ fun StudioCanvasBuilderScreen(
                 }
             },
             confirmButton = {
-                TextButton(
+                Button(
                     onClick = {
                         onSaveFloatingPanelConfig(editedPanelTitle, editedFloatingLogoPath)
                         onDismissEditFloatingPanel()
                     },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF10B981)),
+                    shape = RoundedCornerShape(8.dp),
                     modifier = Modifier.testTag("close_floating_panel_config_button")
                 ) {
-                    Text("Close", fontWeight = FontWeight.Bold)
+                    Text("Save & Close", color = Color.White, fontWeight = FontWeight.Bold)
                 }
             },
-            dismissButton = {}
+            dismissButton = {
+                TextButton(onClick = onDismissEditFloatingPanel) {
+                    Text("Cancel", color = Color(0xFF94A3B8))
+                }
+            }
         )
     }
 
@@ -703,11 +790,19 @@ fun StudioCanvasBuilderScreen(
         )
     }
 
+    val topBarLogoPath = project.floatingLogoPath.ifBlank { project.appLogoPath }
+    val topBarLogoBitmap = remember(topBarLogoPath) {
+        if (topBarLogoPath.isNotBlank()) {
+            val f = File(topBarLogoPath)
+            if (f.exists()) BitmapFactory.decodeFile(f.absolutePath)?.asImageBitmap() else null
+        } else null
+    }
+
     Scaffold(
         modifier = Modifier
             .fillMaxSize()
             .imePadding(),
-        containerColor = Color(0xFFE2E8F0),
+        containerColor = Color(0xFF090D18),
         topBar = {
             TopAppBar(
                 navigationIcon = {
@@ -723,18 +818,75 @@ fun StudioCanvasBuilderScreen(
                     }
                 },
                 title = {
-                    Column {
-                        Text(
-                            text = project.name,
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
-                        )
-                        Text(
-                            text = "${project.overlayTitle} • ${project.canvasWidthDp}×${project.canvasHeightDp} dp",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = Color.White.copy(alpha = 0.88f)
-                        )
+                    Row(
+                        modifier = Modifier
+                            .clickable { onOpenEditFloatingPanel() }
+                            .testTag("top_bar_edit_floating_panel_title"),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        // Circular Floating Window Logo in TopAppBar
+                        Box(
+                            modifier = Modifier
+                                .size(30.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFF2563EB))
+                                .border(BorderStroke(1.5.dp, Color(0xFF38BDF8)), CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (topBarLogoBitmap != null) {
+                                Image(
+                                    bitmap = topBarLogoBitmap,
+                                    contentDescription = "Floating Window Logo",
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .clip(CircleShape)
+                                )
+                            } else {
+                                Icon(
+                                    imageVector = Icons.Default.Image,
+                                    contentDescription = "Edit Floating Window Image",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
+
+                        Column(modifier = Modifier.weight(1f, fill = false)) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Text(
+                                    text = project.overlayTitle.ifBlank { project.name },
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = Color.White,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Text(
+                                    text = "(Edit)",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF38BDF8)
+                                )
+                                Icon(
+                                    imageVector = Icons.Default.Edit,
+                                    contentDescription = "Edit Floating Panel Name & Logo",
+                                    tint = Color(0xFF38BDF8),
+                                    modifier = Modifier.size(13.dp)
+                                )
+                            }
+                            Text(
+                                text = "Floating Panel Studio • ${project.canvasWidthDp}×${project.canvasHeightDp} dp",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = Color(0xFF94A3B8),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
                     }
                 },
                 actions = {
@@ -742,7 +894,7 @@ fun StudioCanvasBuilderScreen(
                         onClick = onOpenEditCode,
                         shape = RoundedCornerShape(8.dp),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFF0F172A),
+                            containerColor = Color(0xFF17223B),
                             contentColor = Color(0xFF38BDF8)
                         ),
                         contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp),
@@ -767,7 +919,7 @@ fun StudioCanvasBuilderScreen(
                         onClick = onDownloadFloatingWindow,
                         shape = RoundedCornerShape(8.dp),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFF00C853),
+                            containerColor = Color(0xFF10B981),
                             contentColor = Color.White
                         ),
                         contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
@@ -797,7 +949,7 @@ fun StudioCanvasBuilderScreen(
                         colors = ButtonDefaults.buttonColors(
                             containerColor = if (uiState.isSystemOverlayRunning)
                                 Color(0xFFEF4444)
-                            else Color(0xFF1E293B)
+                            else Color(0xFF5B46F6)
                         ),
                         contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
                         modifier = Modifier
@@ -818,7 +970,7 @@ fun StudioCanvasBuilderScreen(
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color(0xFF0288D1)
+                    containerColor = Color(0xFF0E1528)
                 )
             )
         },
@@ -835,6 +987,7 @@ fun StudioCanvasBuilderScreen(
                         isAutoFixSize = project.autoFixSize,
                         onToggleAutoFixSize = onToggleAutoFixSize,
                         onOpenEditCode = onOpenEditCode,
+                        onOpenEditFloatingPanel = onOpenEditFloatingPanel,
                         onUpdateComponent = onUpdateComponent,
                         onSaveDesign = { edited -> onSaveProjectDesign(edited) },
                         onPickImageUri = { uri -> onPickImageForComponent(selectedComponent, uri) },
@@ -860,7 +1013,8 @@ fun StudioCanvasBuilderScreen(
                 selectedComponentId = uiState.selectedComponentId,
                 onSelectComponentForEdit = { compId ->
                     onSelectComponent(compId)
-                }
+                },
+                onOpenEditFloatingPanel = onOpenEditFloatingPanel
             )
 
             // SKETCHWARE SPLIT IDE WORKSPACE (Left Vertical Palette + Right Android Phone Frame)

@@ -295,6 +295,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val updated = currentProject.copy(
                 overlayTitle = cleanTitle,
                 floatingLogoPath = cleanLogo,
+                appLogoPath = cleanLogo,
                 updatedAt = System.currentTimeMillis()
             )
             studioDao.updateProject(updated)
@@ -302,10 +303,29 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 state.copy(
                     activeProject = updated,
                     customEditedKotlinFiles = emptyMap(),
-                    statusToast = "Auto-saved Floating Panel Name & Goal Logo."
+                    statusToast = "Saved Floating Window Name & Image."
                 )
             }
+            DynamicOverlayRegistry.updateActiveOverlay(
+                updated.overlayTitle.ifBlank { updated.name },
+                updated.floatingLogoPath.ifBlank { updated.appLogoPath },
+                updated.canvasWidthDp,
+                updated.canvasHeightDp,
+                updated.canvasBgColorHex,
+                updated.autoFixSize,
+                DynamicOverlayRegistry.getActiveItems()
+            )
             syncOverlayRegistryInBackground(updated)
+            if (_uiState.value.isSystemOverlayRunning && Settings.canDrawOverlays(appContext)) {
+                val refreshIntent = Intent(appContext, FloatingDashboardService::class.java).apply {
+                    action = FloatingDashboardService.ACTION_START_OVERLAY
+                }
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    appContext.startForegroundService(refreshIntent)
+                } else {
+                    appContext.startService(refreshIntent)
+                }
+            }
         }
     }
 
@@ -427,12 +447,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 projectName = cleanProjName,
                 overlayTitle = cleanTitle,
                 appLogoPath = cleanLogo,
+                floatingLogoPath = cleanLogo,
                 versionCode = safeVerCode,
                 versionName = safeVerName,
                 minSdk = safeMinSdk,
                 targetSdk = safeTargetSdk,
-                canvasWidthDp = canvasWidthDp.coerceIn(220, 420),
-                canvasHeightDp = canvasHeightDp.coerceIn(220, 560),
+                canvasWidthDp = canvasWidthDp.coerceIn(180, 420),
+                canvasHeightDp = canvasHeightDp.coerceIn(180, 560),
                 canvasBgColorHex = "#FFFFFF",
                 defaultTargetFilePath = resolvedTarget
             )

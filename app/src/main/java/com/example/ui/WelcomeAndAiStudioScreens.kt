@@ -765,6 +765,8 @@ fun StudioAiWorkspaceScreen(
     val context = LocalContext.current
     // Starts 100% empty — no pre-filled text!
     var userPromptInput by remember { mutableStateOf("") }
+    var selectedAiOption by remember { mutableStateOf("Full App (Recommended)") }
+    var isAdvancedOptionsExpanded by remember { mutableStateOf(true) }
     var activeAiTab by remember { mutableStateOf(AiWorkspaceTab.PREVIEW) }
     val listState = rememberLazyListState()
 
@@ -786,40 +788,48 @@ fun StudioAiWorkspaceScreen(
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
-        containerColor = Color(0xFFF1F5F9),
+        containerColor = Color(0xFF090D18),
         topBar = {
             TopAppBar(
                 title = {
-                    Column {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(Color(0xFF4F46E5)),
+                            contentAlignment = Alignment.Center
                         ) {
                             Icon(
                                 imageVector = Icons.Default.AutoAwesome,
                                 contentDescription = "AI Mode",
                                 tint = Color.White,
-                                modifier = Modifier.size(18.dp)
+                                modifier = Modifier.size(20.dp)
                             )
+                        }
+                        Column {
                             Text(
-                                text = "AI Studio (Termux Server)",
+                                text = "AI Mode",
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.ExtraBold,
                                 color = Color.White
                             )
+                            Text(
+                                text = "Server: ${termuxServerConfig.url}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = Color(0xFF94A3B8)
+                            )
                         }
-                        Text(
-                            text = "URL: ${termuxServerConfig.url}",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = Color.White.copy(alpha = 0.92f)
-                        )
                     }
                 },
                 actions = {
                     OutlinedButton(
                         onClick = onToggleServerConfigPanel,
                         shape = RoundedCornerShape(8.dp),
-                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.8f)),
+                        border = BorderStroke(1.dp, Color(0xFF4F46E5)),
                         contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
                         modifier = Modifier
                             .padding(end = 6.dp)
@@ -837,8 +847,8 @@ fun StudioAiWorkspaceScreen(
                     Button(
                         onClick = onSwitchToManualOfflineMode,
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = Color.White,
-                            contentColor = Color(0xFF0F172A)
+                            containerColor = Color(0xFF1E293B),
+                            contentColor = Color.White
                         ),
                         shape = RoundedCornerShape(8.dp),
                         contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
@@ -849,14 +859,14 @@ fun StudioAiWorkspaceScreen(
                     ) {
                         Icon(
                             imageVector = Icons.Default.Tune,
-                            contentDescription = "Manual Mode",
+                            contentDescription = "App Studio Home",
                             modifier = Modifier.size(14.dp)
                         )
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text("Manual Mode", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold)
+                        Text("Home", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold)
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color(0xFF4F46E5))
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color(0xFF090D18))
             )
         }
     ) { innerPadding ->
@@ -870,7 +880,7 @@ fun StudioAiWorkspaceScreen(
             // PERMISSION BAR: Disappears completely once permissions are granted!
             if (!hasStoragePermission || !hasOverlayPermission) {
                 Surface(
-                    color = Color(0xFFFFFBEB),
+                    color = Color(0xFF13192B),
                     border = BorderStroke(1.dp, Color(0xFFF59E0B)),
                     modifier = Modifier
                         .fillMaxWidth()
@@ -887,7 +897,7 @@ fun StudioAiWorkspaceScreen(
                             text = "Grant Permissions:",
                             fontSize = 11.sp,
                             fontWeight = FontWeight.ExtraBold,
-                            color = Color(0xFF92400E),
+                            color = Color(0xFFFBBF24),
                             modifier = Modifier.weight(1f)
                         )
                         if (!hasStoragePermission) {
@@ -917,7 +927,7 @@ fun StudioAiWorkspaceScreen(
                         if (!hasOverlayPermission) {
                             Button(
                                 onClick = { LocalConfigStateWriter.requestOverlayPermission(context) },
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2563EB)),
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4338CA)),
                                 contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
                                 shape = RoundedCornerShape(8.dp),
                                 modifier = Modifier
@@ -931,15 +941,164 @@ fun StudioAiWorkspaceScreen(
                 }
             }
 
-            // MAIN SCROLLABLE AI STREAM & INDEPENDENT PREVIEW / FLOAT / TEST / DOWNLOAD AREA
+            // MAIN SCROLLABLE AI MODE WORKSPACE (Matching Image 2 Column 4)
             LazyColumn(
                 state = listState,
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth(),
-                contentPadding = PaddingValues(14.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
+                // HERO HEADER + PROMPT INPUT CARD + ADVANCED OPTIONS (Matching Screenshot Col 4)
+                item {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("ai_workspace_empty_state"),
+                        verticalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
+                        Text(
+                            text = "Describe your app idea and let\nAI build it for you",
+                            color = Color(0xFF94A3B8),
+                            fontSize = 14.sp,
+                            lineHeight = 20.sp
+                        )
+
+                        // Multi-line Dark Prompt Box with 0/1000 Counter
+                        Surface(
+                            shape = RoundedCornerShape(16.dp),
+                            color = Color(0xFF13192B),
+                            border = BorderStroke(1.dp, Color(0xFF222B45)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp)) {
+                                OutlinedTextField(
+                                    value = userPromptInput,
+                                    onValueChange = { if (it.length <= 1000) userPromptInput = it },
+                                    placeholder = {
+                                        Text(
+                                            text = "E.g. Create a simple notes app with Material You design, dark mode and local storage...",
+                                            color = Color(0xFF64748B),
+                                            fontSize = 13.sp
+                                        )
+                                    },
+                                    minLines = 4,
+                                    maxLines = 6,
+                                    shape = RoundedCornerShape(12.dp),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .testTag("ai_workspace_prompt_input")
+                                )
+                                Spacer(Modifier.height(4.dp))
+                                Text(
+                                    text = "${userPromptInput.length}/1000",
+                                    color = Color(0xFF64748B),
+                                    fontSize = 11.sp,
+                                    modifier = Modifier.align(Alignment.End)
+                                )
+                            }
+                        }
+
+                        // Advanced Options ^ Header
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { isAdvancedOptionsExpanded = !isAdvancedOptionsExpanded },
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Text(
+                                text = "Advanced Options",
+                                color = Color.White,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = if (isAdvancedOptionsExpanded) "︿" else "﹀",
+                                color = Color(0xFF94A3B8),
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+
+                        if (isAdvancedOptionsExpanded) {
+                            val aiOptions = listOf(
+                                Triple(
+                                    "Full App (Recommended)",
+                                    "AI will create complete app with UI, logic, features and design",
+                                    Color(0xFF6366F1)
+                                ),
+                                Triple(
+                                    "UI Only",
+                                    "Generate only the user interface",
+                                    Color(0xFF4F46E5)
+                                ),
+                                Triple(
+                                    "Code Only",
+                                    "Generate clean source code",
+                                    Color(0xFF0284C7)
+                                ),
+                                Triple(
+                                    "Fix / Improve",
+                                    "Improve your existing project",
+                                    Color(0xFF7C3AED)
+                                )
+                            )
+                            aiOptions.forEach { (optTitle, optSub, badgeColor) ->
+                                val isSelected = selectedAiOption == optTitle
+                                Surface(
+                                    shape = RoundedCornerShape(14.dp),
+                                    color = Color(0xFF13192B),
+                                    border = BorderStroke(
+                                        width = if (isSelected) 1.5.dp else 1.dp,
+                                        color = if (isSelected) Color(0xFF6366F1) else Color(0xFF222B45)
+                                    ),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable { selectedAiOption = optTitle }
+                                ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(14.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(34.dp)
+                                                .clip(RoundedCornerShape(10.dp))
+                                                .background(badgeColor.copy(alpha = 0.22f))
+                                                .border(BorderStroke(1.dp, badgeColor), RoundedCornerShape(10.dp)),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Code,
+                                                contentDescription = optTitle,
+                                                tint = Color.White,
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                        }
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = optTitle,
+                                                color = Color.White,
+                                                fontSize = 13.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                            Text(
+                                                text = optSub,
+                                                color = Color(0xFF94A3B8),
+                                                fontSize = 11.sp
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
                 // IN-APP EDITABLE TERMUX SERVER CONFIGURATION CARD (Host, Port, URL)
                 if (termuxServerConfig.isConfigExpanded) {
                     item {
@@ -1100,45 +1259,6 @@ fun StudioAiWorkspaceScreen(
                                         false -> Color(0xFFB91C1C)
                                         null -> Color(0xFF475569)
                                     }
-                                )
-                            }
-                        }
-                    }
-                }
-
-                if (chatHistory.isEmpty() && !isAiBuilding && aiBuiltProject == null) {
-                    item {
-                        Surface(
-                            shape = RoundedCornerShape(16.dp),
-                            color = Color.White,
-                            border = BorderStroke(1.dp, Color(0xFFCBD5E1)),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .testTag("ai_workspace_empty_state")
-                        ) {
-                            Column(
-                                modifier = Modifier.padding(20.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.AutoAwesome,
-                                    contentDescription = "Empty AI Workspace",
-                                    tint = Color(0xFF4F46E5),
-                                    modifier = Modifier.size(32.dp)
-                                )
-                                Text(
-                                    text = "Termux AI Server Mode Ready",
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    color = Color(0xFF0F172A),
-                                    textAlign = TextAlign.Center
-                                )
-                                Text(
-                                    text = "Send your app prompt below. Your message goes directly to your configured Termux Server (${termuxServerConfig.url}) to generate code and compile a signed APK.",
-                                    fontSize = 12.sp,
-                                    color = Color(0xFF475569),
-                                    textAlign = TextAlign.Center
                                 )
                             }
                         }
@@ -1804,30 +1924,16 @@ fun StudioAiWorkspaceScreen(
                 }
             }
 
-            // BOTTOM PROMPT INPUT BAR (Starts 100% empty, no pre-filled text)
+            // BOTTOM 'Generate with AI' CTA BUTTON (Matching Image 2 Column 4)
             Surface(
-                color = Color.White,
-                shadowElevation = 8.dp,
-                border = BorderStroke(1.dp, Color(0xFFCBD5E1)),
+                color = Color(0xFF090D18),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Row(
+                Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        .padding(horizontal = 16.dp, vertical = 12.dp)
                 ) {
-                    OutlinedTextField(
-                        value = userPromptInput,
-                        onValueChange = { userPromptInput = it },
-                        placeholder = { Text("Type prompt to build floating app...") },
-                        maxLines = 3,
-                        modifier = Modifier
-                            .weight(1f)
-                            .testTag("ai_workspace_prompt_input")
-                    )
-
                     Button(
                         onClick = {
                             val clean = userPromptInput.trim()
@@ -1838,22 +1944,28 @@ fun StudioAiWorkspaceScreen(
                         },
                         enabled = userPromptInput.trim().isNotEmpty() && !isAiBuilding,
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFF4F46E5),
-                            contentColor = Color.White
+                            containerColor = Color(0xFF4338CA),
+                            contentColor = Color.White,
+                            disabledContainerColor = Color(0xFF1E293B),
+                            disabledContentColor = Color(0xFF64748B)
                         ),
-                        shape = RoundedCornerShape(12.dp),
-                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 14.dp),
+                        shape = RoundedCornerShape(14.dp),
                         modifier = Modifier
+                            .fillMaxWidth()
                             .height(52.dp)
                             .testTag("ai_workspace_send_prompt_button")
                     ) {
                         Icon(
-                            imageVector = Icons.AutoMirrored.Filled.Send,
-                            contentDescription = "Send Prompt",
+                            imageVector = Icons.Default.AutoAwesome,
+                            contentDescription = "Generate with AI",
                             modifier = Modifier.size(18.dp)
                         )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Send", fontWeight = FontWeight.ExtraBold)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = if (isAiBuilding) "Generating with AI..." else "Generate with AI",
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.ExtraBold
+                        )
                     }
                 }
             }

@@ -91,13 +91,24 @@ data class AiPromptEvaluation(
 data class GgufModelState(
     val mode: StudioGenerationMode = StudioGenerationMode.OFFLINE_MANUAL,
     val isValidGgufLoaded: Boolean = false,
+    val modelHandle: Long = 0L,
+    val contextHandle: Long = 0L,
     val modelFileName: String = "",
     val modelFilePath: String = "",
     val isUsingSampleFallback: Boolean = false,
     val autoSampleFallbackEnabled: Boolean = false,
     val modelArchitecture: String = "",
+    val modelDescription: String = "",
     val quantizationTag: String = "",
     val modelSizeBytes: Long = 0L,
+    val tensorCount: Long = 0L,
+    val kvCount: Long = 0L,
+    val vocabSize: Int = 0,
+    val embeddingDim: Int = 0,
+    val numLayers: Int = 0,
+    val attentionHeads: Int = 0,
+    val contextLength: Int = 0,
+    val parameterCount: Long = 0L,
     val importErrorMessage: String? = null,
     val statusMessage: String = "Select Offline Mode or Online (AI GGUF) Mode to begin.",
     val lastGeneratedBlueprintSummary: String = ""
@@ -143,6 +154,18 @@ data class GeneratedBlueprintSpec(
 object GgufBlueprintEngine {
 
     private const val SAMPLE_GGUF_FILENAME = "sample_studio_codegen_q4_k_m.gguf"
+
+    @JvmStatic
+    fun syncFromTermuxBackend(state: TermuxBackendConnectionState): GgufModelState {
+        val loaded = state.isConnected && state.ggufModelLoadedStatus.contains("Loaded", ignoreCase = true)
+        return GgufModelState(
+            mode = StudioGenerationMode.AI_GGUF_MODE,
+            isValidGgufLoaded = loaded,
+            modelFileName = state.remoteModelName,
+            modelArchitecture = state.llamaCppStatus,
+            statusMessage = state.statusMessage
+        )
+    }
 
     @JvmStatic
     fun ensureSampleGgufFile(context: Context): File {
