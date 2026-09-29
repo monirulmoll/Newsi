@@ -1,0 +1,16 @@
+build
+build/
+/build
+**/build/
+*.apk
+*.aab
+*.dex
+*.class
+llama.cpp
+llama.cpp/
+**/llama.cpp/
+**/llama.cpp/**
+src/main/cpp/
+cpp/
+
+
