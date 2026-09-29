@@ -2,7 +2,6 @@ build
 build/
 /build
 **/build/
-*.apk
 *.aab
 *.dex
 *.class

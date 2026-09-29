@@ -20,9 +20,6 @@ app/build/
 .build-outputs
 .build-outputs/
 /.build-outputs
-APK_DOWNLOAD
-APK_DOWNLOAD/
-/APK_DOWNLOAD
 /captures
 captures/
 .externalNativeBuild
@@ -31,11 +28,12 @@ captures/
 .cxx/
 .env
 debug.keystore
-*.apk
 *.ap_
 *.aab
 *.dex
 *.class
+!APK_DOWNLOAD/
+!APK_DOWNLOAD/*.apk
 llama.cpp
 llama.cpp/
 **/llama.cpp/
