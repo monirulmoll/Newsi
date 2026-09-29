@@ -491,6 +491,34 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun duplicateProject(project: StudioProjectEntity) {
+        viewModelScope.launch {
+            val copyName = "${project.name} Copy"
+            val copySlug = copyName.lowercase(Locale.US).replace(Regex("[^a-z0-9]"), "").ifEmpty { "copy" }
+            val duplicatedProject = project.copy(
+                id = 0L,
+                name = copyName,
+                packageName = "${project.packageName}.$copySlug",
+                projectName = copyName,
+                overlayTitle = project.overlayTitle.ifBlank { copyName },
+                updatedAt = System.currentTimeMillis()
+            )
+            val newProjectId = studioDao.insertProject(duplicatedProject)
+            val originalComponents = studioDao.getComponentsForProjectSync(project.id)
+            for (comp in originalComponents) {
+                studioDao.insertComponent(
+                    comp.copy(
+                        id = 0L,
+                        projectId = newProjectId
+                    )
+                )
+            }
+            _uiState.update {
+                it.copy(statusToast = "Duplicated project '${project.name}' → '$copyName'.")
+            }
+        }
+    }
+
     fun deleteProject(projectId: Long) {
         viewModelScope.launch {
             studioDao.deleteAllComponentsForProject(projectId)
@@ -979,7 +1007,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     "1"
                 }
                 val updatedComp = component.copy(
-                    label = cleanFileName,
+                    label = component.label.ifBlank { cleanFileName },
                     customImagePath = destFile.absolutePath,
                     currentValue = activeVal
                 )

@@ -27,7 +27,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AccountBox
 import androidx.compose.material.icons.filled.CheckBox
 import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.Download
@@ -115,81 +114,39 @@ fun ComponentTrackerBanner(
     onSelectComponentForEdit: (Long?) -> Unit,
     onOpenEditFloatingPanel: (() -> Unit)? = null
 ) {
+    // Only show widget chips when components exist, with no extra clutter banner when empty
+    if (components.isEmpty()) return
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .background(Color(0xFF10182E))
             .border(BorderStroke(0.5.dp, Color(0xFF233052)))
             .horizontalScroll(rememberScrollState())
-            .padding(horizontal = 10.dp, vertical = 7.dp),
+            .padding(horizontal = 10.dp, vertical = 6.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        if (onOpenEditFloatingPanel != null) {
+        components.forEach { comp ->
+            val isSelected = comp.id == selectedComponentId
             Surface(
                 shape = RoundedCornerShape(8.dp),
-                color = Color(0xFF1E293B),
-                border = BorderStroke(1.dp, Color(0xFF38BDF8)),
+                color = if (isSelected) Color(0xFF5B46F6) else Color(0xFF1A243D),
+                border = BorderStroke(
+                    1.dp,
+                    if (isSelected) Color(0xFF818CF8) else Color(0xFF2E3C5E)
+                ),
                 modifier = Modifier
-                    .clickable { onOpenEditFloatingPanel() }
-                    .testTag("banner_edit_floating_panel_button")
+                    .clickable { onSelectComponentForEdit(comp.id) }
+                    .testTag("tracker_chip_${comp.id}")
             ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(5.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Edit,
-                        contentDescription = "Edit Floating Window Name & Image",
-                        tint = Color(0xFF38BDF8),
-                        modifier = Modifier.size(13.dp)
-                    )
-                    Text(
-                        text = "Panel Name & Logo",
-                        color = Color(0xFF38BDF8),
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            }
-        }
-
-        if (components.isEmpty()) {
-            Text(
-                text = "No widgets added yet — Tap any widget on the left to add",
-                color = Color(0xFF94A3B8),
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Medium
-            )
-        } else {
-            Text(
-                text = "Widgets (${summary.totalCount}):",
-                color = Color(0xFF38BDF8),
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Bold
-            )
-            components.forEach { comp ->
-                val isSelected = comp.id == selectedComponentId
-                Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    color = if (isSelected) Color(0xFF5B46F6) else Color(0xFF1A243D),
-                    border = BorderStroke(
-                        1.dp,
-                        if (isSelected) Color(0xFF818CF8) else Color(0xFF2E3C5E)
-                    ),
-                    modifier = Modifier
-                        .clickable { onSelectComponentForEdit(comp.id) }
-                        .testTag("tracker_chip_${comp.id}")
-                ) {
-                    Text(
-                        text = comp.label,
-                        color = Color.White,
-                        fontSize = 11.sp,
-                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
-                    )
-                }
+                Text(
+                    text = comp.label,
+                    color = Color.White,
+                    fontSize = 11.sp,
+                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                )
             }
         }
     }
@@ -217,11 +174,9 @@ fun SketchwareStudioSplitWorkspace(
     Row(modifier = modifier.fillMaxSize()) {
         // LEFT SIDE WIDGET PALETTE (Dark Floating Panel Studio style)
         LeftSideWidgetPalette(
-            project = project,
             isAutoFixSize = project.autoFixSize,
             onSelectPaletteEntry = onAddPaletteEntry,
-            onToggleAutoFixSize = onToggleAutoFixSize,
-            onOpenEditFloatingPanel = onOpenEditFloatingPanel
+            onToggleAutoFixSize = onToggleAutoFixSize
         )
 
         // RIGHT SIDE INTERACTIVE PHONE FRAME + FLOATING PANEL CANVAS
@@ -249,20 +204,10 @@ fun SketchwareStudioSplitWorkspace(
 
 @Composable
 private fun LeftSideWidgetPalette(
-    project: StudioProjectEntity,
     isAutoFixSize: Boolean,
     onSelectPaletteEntry: (SketchwarePaletteEntry) -> Unit,
-    onToggleAutoFixSize: () -> Unit,
-    onOpenEditFloatingPanel: () -> Unit
+    onToggleAutoFixSize: () -> Unit
 ) {
-    val activeLogoPath = project.floatingLogoPath.ifBlank { project.appLogoPath }
-    val sidebarLogoBitmap = remember(activeLogoPath) {
-        if (activeLogoPath.isNotBlank()) {
-            val file = File(activeLogoPath)
-            if (file.exists()) BitmapFactory.decodeFile(file.absolutePath)?.asImageBitmap() else null
-        } else null
-    }
-
     val layoutItems = remember {
         listOf(
             LeftPaletteItemSpec(
@@ -383,68 +328,6 @@ private fun LeftSideWidgetPalette(
             .testTag("left_widget_palette_sidebar")
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            // Quick button at top of left palette to edit Floating Window Name & Image
-            Surface(
-                color = Color(0xFF17223B),
-                border = BorderStroke(1.dp, Color(0xFF38BDF8)),
-                shape = RoundedCornerShape(8.dp),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 6.dp, vertical = 6.dp)
-                    .clickable { onOpenEditFloatingPanel() }
-                    .testTag("left_palette_edit_panel_button")
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(22.dp)
-                            .clip(CircleShape)
-                            .background(Color(0xFF2563EB))
-                            .border(BorderStroke(1.dp, Color.White), CircleShape),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        if (sidebarLogoBitmap != null) {
-                            Image(
-                                bitmap = sidebarLogoBitmap,
-                                contentDescription = "Floating Window Logo",
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .clip(CircleShape)
-                            )
-                        } else {
-                            Icon(
-                                imageVector = Icons.Default.AccountBox,
-                                contentDescription = "Edit Panel Name & Logo",
-                                tint = Color.White,
-                                modifier = Modifier.size(13.dp)
-                            )
-                        }
-                    }
-                    Column {
-                        Text(
-                            text = "Panel & Logo",
-                            color = Color.White,
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            maxLines = 1
-                        )
-                        Text(
-                            text = "Edit Name/Icon",
-                            color = Color(0xFF38BDF8),
-                            fontSize = 8.sp,
-                            maxLines = 1
-                        )
-                    }
-                }
-            }
-
-            HorizontalDivider(color = Color(0xFF1E293B))
-
             // Scrollable Categorized Widget List on Left Side
             Column(
                 modifier = Modifier
@@ -488,7 +371,7 @@ private fun LeftSideWidgetPalette(
                 }
             }
 
-            // Bottom pinned Auto Size button matching screenshot
+            // Bottom pinned Auto Size button
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -645,7 +528,7 @@ fun InteractiveOverlayCanvas(
             .padding(10.dp),
         contentAlignment = Alignment.Center
     ) {
-        // Outer Android Phone Frame matching the Floating Panel Studio screenshot
+        // Outer Android Phone Frame
         Card(
             shape = RoundedCornerShape(26.dp),
             colors = CardDefaults.cardColors(containerColor = Color(0xFF11192E)),
@@ -656,7 +539,7 @@ fun InteractiveOverlayCanvas(
                 .padding(horizontal = 4.dp, vertical = 2.dp)
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
-                // Phone Status Bar ("9:41" ... "main.xml" ... "Edit Name & Logo")
+                // Clean Phone Status Bar ("9:41" ... "main.xml")
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -671,44 +554,12 @@ fun InteractiveOverlayCanvas(
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold
                     )
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Text(
-                            text = "main.xml",
-                            color = Color(0xFF94A3B8),
-                            fontSize = 10.sp,
-                            fontFamily = FontFamily.Monospace
-                        )
-                        Surface(
-                            color = Color(0xFF172554),
-                            border = BorderStroke(1.dp, Color(0xFF38BDF8)),
-                            shape = RoundedCornerShape(6.dp),
-                            modifier = Modifier
-                                .clickable { onOpenEditFloatingPanel() }
-                                .testTag("phone_bar_edit_panel_button")
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Image,
-                                    contentDescription = "Edit Floating Window Name & Image",
-                                    tint = Color(0xFF38BDF8),
-                                    modifier = Modifier.size(11.dp)
-                                )
-                                Text(
-                                    text = "Edit Name & Logo",
-                                    color = Color(0xFF38BDF8),
-                                    fontSize = 9.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                        }
-                    }
+                    Text(
+                        text = "main.xml",
+                        color = Color(0xFF94A3B8),
+                        fontSize = 10.sp,
+                        fontFamily = FontFamily.Monospace
+                    )
                 }
 
                 // Phone Screen Workspace Area
@@ -721,55 +572,36 @@ fun InteractiveOverlayCanvas(
                 ) {
                     if (isCollapsedToGoalBubble) {
                         // Minimized Goal Bubble Preview (with Logo or Panel Name)
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        Box(
+                            modifier = Modifier
+                                .size(68.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFF2563EB))
+                                .border(BorderStroke(2.dp, Color.White), CircleShape)
+                                .clickable { isCollapsedToGoalBubble = false }
+                                .testTag("canvas_minimized_goal_bubble"),
+                            contentAlignment = Alignment.Center
                         ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(68.dp)
-                                    .clip(CircleShape)
-                                    .background(Color(0xFF2563EB))
-                                    .border(BorderStroke(2.dp, Color.White), CircleShape)
-                                    .clickable { isCollapsedToGoalBubble = false }
-                                    .testTag("canvas_minimized_goal_bubble"),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                if (floatingLogoBitmap != null) {
-                                    Image(
-                                        bitmap = floatingLogoBitmap,
-                                        contentDescription = "Floating Goal Bubble Logo",
-                                        contentScale = ContentScale.Crop,
-                                        modifier = Modifier
-                                            .fillMaxSize()
-                                            .clip(CircleShape)
-                                    )
-                                } else {
-                                    Text(
-                                        text = resolvedPanelTitle,
-                                        color = Color.White,
-                                        fontSize = 10.sp,
-                                        fontWeight = FontWeight.ExtraBold,
-                                        textAlign = TextAlign.Center,
-                                        maxLines = 2,
-                                        overflow = TextOverflow.Ellipsis,
-                                        modifier = Modifier.padding(4.dp)
-                                    )
-                                }
-                            }
-                            Text(
-                                text = "Tap round bubble to expand • Tap below to edit Name & Image",
-                                color = Color(0xFF475569),
-                                fontSize = 10.sp
-                            )
-                            Button(
-                                onClick = onOpenEditFloatingPanel,
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2563EB)),
-                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
-                            ) {
-                                Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(14.dp))
-                                Spacer(Modifier.width(4.dp))
-                                Text("Edit Floating Window Name & Image", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            if (floatingLogoBitmap != null) {
+                                Image(
+                                    bitmap = floatingLogoBitmap,
+                                    contentDescription = "Floating Goal Bubble Logo",
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .clip(CircleShape)
+                                )
+                            } else {
+                                Text(
+                                    text = resolvedPanelTitle,
+                                    color = Color.White,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    textAlign = TextAlign.Center,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.padding(4.dp)
+                                )
                             }
                         }
                     } else {
@@ -807,18 +639,17 @@ fun InteractiveOverlayCanvas(
                                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                                         modifier = Modifier.weight(1f)
                                     ) {
-                                        // Floating Panel Logo Circle (or Add Image icon)
-                                        Box(
-                                            modifier = Modifier
-                                                .size(26.dp)
-                                                .clip(CircleShape)
-                                                .background(Color(0xFF1D4ED8))
-                                                .border(BorderStroke(1.2.dp, Color.White), CircleShape)
-                                                .clickable { onOpenEditFloatingPanel() }
-                                                .testTag("floating_panel_header_logo"),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            if (floatingLogoBitmap != null) {
+                                        if (floatingLogoBitmap != null) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(24.dp)
+                                                    .clip(CircleShape)
+                                                    .background(Color(0xFF1D4ED8))
+                                                    .border(BorderStroke(1.dp, Color.White), CircleShape)
+                                                    .clickable { onOpenEditFloatingPanel() }
+                                                    .testTag("floating_panel_header_logo"),
+                                                contentAlignment = Alignment.Center
+                                            ) {
                                                 Image(
                                                     bitmap = floatingLogoBitmap,
                                                     contentDescription = "Floating Panel Logo",
@@ -827,32 +658,17 @@ fun InteractiveOverlayCanvas(
                                                         .fillMaxSize()
                                                         .clip(CircleShape)
                                                 )
-                                            } else {
-                                                Icon(
-                                                    imageVector = Icons.Default.Image,
-                                                    contentDescription = "Add Floating Logo",
-                                                    tint = Color.White,
-                                                    modifier = Modifier.size(14.dp)
-                                                )
                                             }
                                         }
 
-                                        Column(modifier = Modifier.weight(1f, fill = false)) {
-                                            Text(
-                                                text = resolvedPanelTitle,
-                                                color = Color.White,
-                                                fontSize = 13.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis
-                                            )
-                                        }
-
-                                        Icon(
-                                            imageVector = Icons.Default.Edit,
-                                            contentDescription = "Edit Floating Panel Name and Logo",
-                                            tint = Color.White.copy(alpha = 0.9f),
-                                            modifier = Modifier.size(14.dp)
+                                        Text(
+                                            text = resolvedPanelTitle,
+                                            color = Color.White,
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                            modifier = Modifier.weight(1f, fill = false)
                                         )
                                     }
 
@@ -871,23 +687,6 @@ fun InteractiveOverlayCanvas(
 
                                 // Widget Canvas Area inside Floating Panel
                                 Box(modifier = Modifier.fillMaxSize()) {
-                                    if (components.isEmpty()) {
-                                        Column(
-                                            modifier = Modifier
-                                                .fillMaxSize()
-                                                .padding(16.dp),
-                                            horizontalAlignment = Alignment.CenterHorizontally,
-                                            verticalArrangement = Arrangement.Center
-                                        ) {
-                                            Text(
-                                                text = "Tap any widget on the left panel to add it here.\nTap the blue header above to edit Floating Window Name & Image.",
-                                                color = Color(0xFF64748B),
-                                                fontSize = 11.sp,
-                                                textAlign = TextAlign.Center
-                                            )
-                                        }
-                                    }
-
                                     components.forEach { comp ->
                                         val isSelected = comp.id == selectedComponentId
                                         var offsetX by remember(comp.id, comp.posXDp) {
@@ -990,30 +789,13 @@ fun InteractiveOverlayCanvas(
                                                     }
                                                 }
                                                 if (isToggle) {
-                                                    Row(
-                                                        verticalAlignment = Alignment.CenterVertically,
-                                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                                    ) {
-                                                        Surface(
-                                                            color = if (isChecked) Color(0xFF00C853) else Color(0xFFEF4444),
-                                                            shape = RoundedCornerShape(4.dp)
-                                                        ) {
-                                                            Text(
-                                                                text = if (isChecked) "ON" else "OFF",
-                                                                color = Color.White,
-                                                                fontSize = 9.sp,
-                                                                fontWeight = FontWeight.ExtraBold,
-                                                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
-                                                            )
+                                                    Switch(
+                                                        checked = isChecked,
+                                                        onCheckedChange = { checked ->
+                                                            onSelectComponent(comp.id)
+                                                            onTriggerComponent(comp, if (checked) "1" else "0")
                                                         }
-                                                        Switch(
-                                                            checked = isChecked,
-                                                            onCheckedChange = { checked ->
-                                                                onSelectComponent(comp.id)
-                                                                onTriggerComponent(comp, if (checked) "1" else "0")
-                                                            }
-                                                        )
-                                                    }
+                                                    )
                                                 }
                                             }
                                         }

@@ -36,7 +36,9 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.MenuBook
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.AccountTree
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Apps
@@ -45,6 +47,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.Code
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.CreateNewFolder
 import androidx.compose.material.icons.filled.DashboardCustomize
 import androidx.compose.material.icons.filled.Delete
@@ -58,6 +61,7 @@ import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.NotificationsNone
@@ -153,6 +157,7 @@ fun StudioProjectLauncherScreen(
     onOpenExistingPicker: () -> Unit,
     onDismissExistingPicker: () -> Unit,
     onSelectProject: (StudioProjectEntity) -> Unit,
+    onDuplicateProject: (StudioProjectEntity) -> Unit = {},
     onDeleteProject: (Long) -> Unit,
     onOpenEditProjectDialog: (StudioProjectEntity) -> Unit,
     onDismissEditProjectDialog: () -> Unit,
@@ -224,6 +229,7 @@ fun StudioProjectLauncherScreen(
         },
         onOpenProject = onSelectProject,
         onEditProject = onOpenEditProjectDialog,
+        onDuplicateProject = onDuplicateProject,
         onDeleteProject = onDeleteProject,
         onOpenAiStudio = onOpenOnlineAiMode,
         onBackToWelcome = onRefreshPermissions
@@ -417,6 +423,7 @@ fun LauncherScreen(
     },
     onOpenProject: (StudioProjectEntity) -> Unit,
     onEditProject: (StudioProjectEntity) -> Unit = {},
+    onDuplicateProject: (StudioProjectEntity) -> Unit = {},
     onDeleteProject: (Long) -> Unit,
     onOpenAiStudio: () -> Unit,
     onBackToWelcome: () -> Unit,
@@ -567,6 +574,7 @@ fun LauncherScreen(
                         onOpenTemplates = { currentSubScreen = AppStudioSubScreen.TEMPLATES },
                         onOpenProject = onOpenProject,
                         onEditProject = onEditProject,
+                        onDuplicateProject = onDuplicateProject,
                         onDeleteProject = onDeleteProject,
                         onCreateStarterProject = { name, pkg, panelTitle ->
                             onCreateProjectWithLogo(name, pkg, panelTitle, "")
@@ -587,6 +595,23 @@ fun LauncherScreen(
 
                 AppStudioSubScreen.CREATE_NEW_APP -> {
                     CreateNewAppWizardScreenContent(
+                        hasStoragePermission = hasStoragePermission,
+                        hasOverlayPermission = hasOverlayPermission,
+                        onRequestStoragePermission = {
+                            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+                                storagePermLauncher.launch(
+                                    arrayOf(
+                                        Manifest.permission.READ_EXTERNAL_STORAGE,
+                                        Manifest.permission.WRITE_EXTERNAL_STORAGE
+                                    )
+                                )
+                            } else {
+                                LocalConfigStateWriter.requestStoragePermission(context)
+                            }
+                        },
+                        onRequestOverlayPermission = {
+                            LocalConfigStateWriter.requestOverlayPermission(context)
+                        },
                         onBack = { currentSubScreen = AppStudioSubScreen.HOME },
                         onImportLogoUri = onImportLogoUri,
                         onCreateApp = { name, pkg, overlayTitle, logoPath ->
@@ -620,6 +645,7 @@ fun LauncherScreen(
                         onCreateNewApp = { currentSubScreen = AppStudioSubScreen.CREATE_NEW_APP },
                         onOpenProject = onOpenProject,
                         onEditProject = onEditProject,
+                        onDuplicateProject = onDuplicateProject,
                         onDeleteProject = onDeleteProject,
                         onCreateStarterProject = { name, pkg, panelTitle ->
                             onCreateProjectWithLogo(name, pkg, panelTitle, "")
@@ -656,6 +682,7 @@ private fun AppStudioHomeScreenContent(
     onOpenTemplates: () -> Unit,
     onOpenProject: (StudioProjectEntity) -> Unit,
     onEditProject: (StudioProjectEntity) -> Unit,
+    onDuplicateProject: (StudioProjectEntity) -> Unit = {},
     onDeleteProject: (Long) -> Unit,
     onCreateStarterProject: (String, String, String) -> Unit
 ) {
@@ -898,62 +925,6 @@ private fun AppStudioHomeScreenContent(
             }
         }
 
-        // PERMISSIONS BANNER (Only shown if missing Storage or Overlay permission)
-        if (!hasStoragePermission || !hasOverlayPermission) {
-            item {
-                Surface(
-                    color = Color(0xFF171F36),
-                    shape = RoundedCornerShape(14.dp),
-                    border = BorderStroke(1.dp, Color(0xFFF59E0B)),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag("welcome_permissions_card")
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 12.dp, vertical = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Text(
-                            text = "Permissions:",
-                            color = Color(0xFFFBBF24),
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.weight(1f)
-                        )
-                        if (!hasStoragePermission) {
-                            Button(
-                                onClick = onRequestStoragePermission,
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD97706)),
-                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
-                                shape = RoundedCornerShape(8.dp),
-                                modifier = Modifier
-                                    .height(34.dp)
-                                    .testTag("welcome_grant_storage_button")
-                            ) {
-                                Text("Allow Storage", fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                            }
-                        }
-                        if (!hasOverlayPermission) {
-                            Button(
-                                onClick = onRequestOverlayPermission,
-                                colors = ButtonDefaults.buttonColors(containerColor = StudioIndigoPrimary),
-                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
-                                shape = RoundedCornerShape(8.dp),
-                                modifier = Modifier
-                                    .height(34.dp)
-                                    .testTag("welcome_grant_overlay_button")
-                            ) {
-                                Text("Allow Overlay", fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
         // 3. 4 ACTION TILES ROW (Create New App, AI Mode, Saved Projects, Import Project)
         item {
             Row(
@@ -999,6 +970,18 @@ private fun AppStudioHomeScreenContent(
                     modifier = Modifier
                         .weight(1f)
                         .testTag("home_import_project_tile")
+                )
+            }
+        }
+
+        // PERMISSIONS CARDS SECTION (Overlay Permission, Storage Permission & Grant Permissions button)
+        if (!hasOverlayPermission || !hasStoragePermission) {
+            item {
+                StudioPermissionsSectionCard(
+                    hasOverlayPermission = hasOverlayPermission,
+                    hasStoragePermission = hasStoragePermission,
+                    onRequestOverlayPermission = onRequestOverlayPermission,
+                    onRequestStoragePermission = onRequestStoragePermission
                 )
             }
         }
@@ -1072,25 +1055,8 @@ private fun AppStudioHomeScreenContent(
                     project = project,
                     onOpen = { onOpenProject(project) },
                     onEdit = { onEditProject(project) },
+                    onDuplicate = { onDuplicateProject(project) },
                     onDelete = { onDeleteProject(project.id) }
-                )
-            }
-        } else {
-            // Show starter showcase projects matching screenshot when no user projects exist yet
-            val starterList = listOf(
-                Triple("NeuraSelf-UwU", "Modified 2h ago", Color(0xFF7C3AED)),
-                Triple("My First App", "Modified 5h ago", Color(0xFF3B82F6)),
-                Triple("Weather App", "Modified 1d ago", Color(0xFF0284C7))
-            )
-            items(starterList) { (title, subtitle, badgeColor) ->
-                StarterProjectListCard(
-                    title = title,
-                    subtitle = subtitle,
-                    badgeColor = badgeColor,
-                    onClick = {
-                        val slug = title.lowercase().replace(Regex("[^a-z0-9]"), "")
-                        onCreateStarterProject(title, "com.appstudio.$slug", "$title Panel")
-                    }
                 )
             }
         }
@@ -1195,6 +1161,7 @@ private fun DarkProjectListCard(
     project: StudioProjectEntity,
     onOpen: () -> Unit,
     onEdit: () -> Unit,
+    onDuplicate: () -> Unit = {},
     onDelete: () -> Unit
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
@@ -1207,18 +1174,18 @@ private fun DarkProjectListCard(
     }
 
     val badgeColors = listOf(
+        Color(0xFF00C896),
+        Color(0xFF2563EB),
         Color(0xFF6366F1),
-        Color(0xFF3B82F6),
         Color(0xFF10B981),
-        Color(0xFFEC4899),
-        Color(0xFFF59E0B)
+        Color(0xFFEC4899)
     )
     val badgeColor = badgeColors[(project.id.toInt().coerceAtLeast(0)) % badgeColors.size]
 
     Surface(
-        shape = RoundedCornerShape(14.dp),
-        color = StudioCardBg,
-        border = BorderStroke(1.dp, StudioCardBorder),
+        shape = RoundedCornerShape(16.dp),
+        color = Color(0xFF081226),
+        border = BorderStroke(1.dp, Color(0xFF1A2D52)),
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onOpen)
@@ -1227,7 +1194,7 @@ private fun DarkProjectListCard(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 12.dp),
+                .padding(horizontal = 14.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
@@ -1238,7 +1205,7 @@ private fun DarkProjectListCard(
             ) {
                 Box(
                     modifier = Modifier
-                        .size(44.dp)
+                        .size(46.dp)
                         .clip(RoundedCornerShape(12.dp))
                         .background(badgeColor)
                         .clickable { onEdit() },
@@ -1267,14 +1234,14 @@ private fun DarkProjectListCard(
                     Text(
                         text = project.name,
                         color = Color.White,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.ExtraBold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                     Text(
                         text = "Panel: ${project.overlayTitle.ifBlank { project.name }} • ${project.canvasWidthDp}×${project.canvasHeightDp}dp",
-                        color = StudioTextSecondary,
+                        color = Color(0xFF7B93B8),
                         fontSize = 11.sp,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
@@ -1290,33 +1257,99 @@ private fun DarkProjectListCard(
                     Icon(
                         imageVector = Icons.Default.MoreVert,
                         contentDescription = "Project options",
-                        tint = StudioTextSecondary
+                        tint = Color(0xFF94A3B8)
                     )
                 }
                 DropdownMenu(
                     expanded = menuExpanded,
                     onDismissRequest = { menuExpanded = false },
-                    containerColor = Color(0xFF1E293B)
+                    shape = RoundedCornerShape(14.dp),
+                    containerColor = Color(0xFF0B1326),
+                    border = BorderStroke(1.dp, Color(0xFF233559))
                 ) {
                     DropdownMenuItem(
-                        text = { Text("Open in Studio", color = Color.White) },
-                        leadingIcon = { Icon(Icons.Default.FolderOpen, contentDescription = null, tint = Color(0xFF38BDF8)) },
+                        text = {
+                            Text(
+                                text = "Open",
+                                color = Color.White,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.OpenInNew,
+                                contentDescription = "Open",
+                                tint = Color(0xFF94A3B8),
+                                modifier = Modifier.size(18.dp)
+                            )
+                        },
                         onClick = {
                             menuExpanded = false
                             onOpen()
                         }
                     )
                     DropdownMenuItem(
-                        text = { Text("Edit Panel Name & Logo", color = Color.White) },
-                        leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null, tint = Color(0xFF818CF8)) },
+                        text = {
+                            Text(
+                                text = "Edit",
+                                color = Color.White,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Default.Edit,
+                                contentDescription = "Edit",
+                                tint = Color(0xFF94A3B8),
+                                modifier = Modifier.size(18.dp)
+                            )
+                        },
                         onClick = {
                             menuExpanded = false
                             onEdit()
                         }
                     )
                     DropdownMenuItem(
-                        text = { Text("Delete Project", color = Color(0xFFF87171)) },
-                        leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = Color(0xFFF87171)) },
+                        text = {
+                            Text(
+                                text = "Duplicate",
+                                color = Color.White,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Default.ContentCopy,
+                                contentDescription = "Duplicate",
+                                tint = Color(0xFF94A3B8),
+                                modifier = Modifier.size(18.dp)
+                            )
+                        },
+                        onClick = {
+                            menuExpanded = false
+                            onDuplicate()
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = {
+                            Text(
+                                text = "Delete",
+                                color = Color.White,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Default.Delete,
+                                contentDescription = "Delete",
+                                tint = Color(0xFF94A3B8),
+                                modifier = Modifier.size(18.dp)
+                            )
+                        },
                         onClick = {
                             menuExpanded = false
                             onDelete()
@@ -1570,21 +1603,21 @@ private fun HubOptionCard(
 }
 
 /**
- * IMAGE 2, COLUMN 3: "Create New App" 4-Step Wizard Form
+ * Streamlined "Create New App" Screen + Permission Cards (Overlay Permission, Storage Permission & Grant Permissions)
  */
 @Composable
 private fun CreateNewAppWizardScreenContent(
+    hasStoragePermission: Boolean = true,
+    hasOverlayPermission: Boolean = true,
+    onRequestStoragePermission: () -> Unit = {},
+    onRequestOverlayPermission: () -> Unit = {},
     onBack: () -> Unit,
     onImportLogoUri: (Uri, (String) -> Unit) -> Unit,
     onCreateApp: (String, String, String, String) -> Unit
 ) {
     var appName by remember { mutableStateOf("") }
     var packageName by remember { mutableStateOf("") }
-    var descriptionOrPanelTitle by remember { mutableStateOf("") }
-    var selectedCategory by remember { mutableStateOf("Entertainment") }
-    var categoryDropdownExpanded by remember { mutableStateOf(false) }
     var selectedLogoPath by remember { mutableStateOf("") }
-    var currentStep by remember { mutableIntStateOf(1) }
 
     val logoPicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia()
@@ -1602,15 +1635,6 @@ private fun CreateNewAppWizardScreenContent(
             if (f.exists()) BitmapFactory.decodeFile(f.absolutePath)?.asImageBitmap() else null
         } else null
     }
-
-    val categories = listOf(
-        "Entertainment",
-        "Floating Mod Menu",
-        "Tools & Utility",
-        "Productivity",
-        "Games & Simulation",
-        "Social & Media"
-    )
 
     Column(
         modifier = Modifier
@@ -1645,55 +1669,6 @@ private fun CreateNewAppWizardScreenContent(
                     color = StudioTextSecondary,
                     fontSize = 12.sp
                 )
-            }
-        }
-
-        Spacer(Modifier.height(18.dp))
-
-        // 4-Step Progress Indicator (1 Basic Info — 2 Features — 3 Design — 4 Finish)
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            val steps = listOf(
-                1 to "Basic Info",
-                2 to "Features",
-                3 to "Design",
-                4 to "Finish"
-            )
-            steps.forEach { (stepNum, label) ->
-                val isActive = currentStep >= stepNum
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.clickable { currentStep = stepNum }
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(30.dp)
-                            .clip(CircleShape)
-                            .background(if (isActive) Color(0xFF3B82F6) else StudioCardBg)
-                            .border(
-                                BorderStroke(1.dp, if (isActive) Color(0xFF60A5FA) else StudioCardBorder),
-                                CircleShape
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = stepNum.toString(),
-                            color = if (isActive) Color.White else StudioTextSecondary,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        text = label,
-                        color = if (isActive) Color.White else StudioTextSecondary,
-                        fontSize = 11.sp,
-                        fontWeight = if (isActive) FontWeight.Bold else FontWeight.Normal
-                    )
-                }
             }
         }
 
@@ -1759,51 +1734,10 @@ private fun CreateNewAppWizardScreenContent(
                 )
             }
 
-            // Description / Floating Panel Title
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(
-                    text = "Description / Floating Panel Title",
-                    color = Color.White,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.SemiBold
-                )
-                OutlinedTextField(
-                    value = descriptionOrPanelTitle,
-                    onValueChange = { if (it.length <= 200) descriptionOrPanelTitle = it },
-                    placeholder = {
-                        Text(
-                            text = "Enter app description or floating panel name (optional)",
-                            color = StudioTextSecondary,
-                            fontSize = 13.sp
-                        )
-                    },
-                    minLines = 3,
-                    maxLines = 4,
-                    shape = RoundedCornerShape(12.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedContainerColor = StudioCardBg,
-                        unfocusedContainerColor = StudioCardBg,
-                        focusedBorderColor = StudioIndigoAccent,
-                        unfocusedBorderColor = StudioCardBorder,
-                        focusedTextColor = Color.White,
-                        unfocusedTextColor = Color.White
-                    ),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag("new_project_overlay_title_input")
-                )
-                Text(
-                    text = "${descriptionOrPanelTitle.length}/200",
-                    color = StudioTextSecondary,
-                    fontSize = 11.sp,
-                    modifier = Modifier.align(Alignment.End)
-                )
-            }
-
             // App Icon & Floating Panel Logo
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
-                    text = "App Icon & Floating Panel Logo",
+                    text = "App Icon",
                     color = Color.White,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.SemiBold
@@ -1867,59 +1801,15 @@ private fun CreateNewAppWizardScreenContent(
                 }
             }
 
-            // App Category Dropdown
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(
-                    text = "App Category",
-                    color = Color.White,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.SemiBold
-                )
-                Box {
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = StudioCardBg,
-                        border = BorderStroke(1.dp, StudioCardBorder),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { categoryDropdownExpanded = true }
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 14.dp, vertical = 14.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = selectedCategory,
-                                color = Color.White,
-                                fontSize = 14.sp
-                            )
-                            Icon(
-                                imageVector = Icons.Default.KeyboardArrowDown,
-                                contentDescription = "Select Category",
-                                tint = StudioTextSecondary
-                            )
-                        }
-                    }
-                    DropdownMenu(
-                        expanded = categoryDropdownExpanded,
-                        onDismissRequest = { categoryDropdownExpanded = false },
-                        containerColor = Color(0xFF1E293B)
-                    ) {
-                        categories.forEach { cat ->
-                            DropdownMenuItem(
-                                text = { Text(cat, color = Color.White) },
-                                onClick = {
-                                    selectedCategory = cat
-                                    categoryDropdownExpanded = false
-                                }
-                            )
-                        }
-                    }
-                }
-            }
+            Spacer(Modifier.height(4.dp))
+
+            // Permission Cards (Overlay Permission, Storage Permission & Grant Permissions button)
+            StudioPermissionsSectionCard(
+                hasOverlayPermission = hasOverlayPermission,
+                hasStoragePermission = hasStoragePermission,
+                onRequestOverlayPermission = onRequestOverlayPermission,
+                onRequestStoragePermission = onRequestStoragePermission
+            )
         }
 
         Spacer(Modifier.height(12.dp))
@@ -1945,8 +1835,7 @@ private fun CreateNewAppWizardScreenContent(
                     val finalName = appName.trim().ifEmpty { "My App" }
                     val slug = finalName.lowercase().replace(Regex("[^a-z0-9]"), "").ifEmpty { "myapp" }
                     val finalPkg = packageName.trim().ifEmpty { "com.example.$slug" }
-                    val finalTitle = descriptionOrPanelTitle.trim().ifEmpty { finalName }
-                    onCreateApp(finalName, finalPkg, finalTitle, selectedLogoPath)
+                    onCreateApp(finalName, finalPkg, finalName, selectedLogoPath)
                 },
                 colors = ButtonDefaults.buttonColors(containerColor = StudioIndigoPrimary),
                 shape = RoundedCornerShape(12.dp),
@@ -1964,6 +1853,230 @@ private fun CreateNewAppWizardScreenContent(
                     modifier = Modifier.size(16.dp)
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun StudioPermissionsSectionCard(
+    hasOverlayPermission: Boolean,
+    hasStoragePermission: Boolean,
+    onRequestOverlayPermission: () -> Unit,
+    onRequestStoragePermission: () -> Unit
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        // Card 1: Overlay Permission
+        Surface(
+            shape = RoundedCornerShape(16.dp),
+            color = Color(0xFF0A1328),
+            border = BorderStroke(1.dp, Color(0xFF1E2F52)),
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onRequestOverlayPermission)
+                .testTag("welcome_grant_overlay_button")
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp, vertical = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(48.dp)
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(
+                                Brush.linearGradient(
+                                    colors = listOf(Color(0xFF7C3AED), Color(0xFF4F46E5))
+                                )
+                            )
+                            .border(BorderStroke(1.dp, Color(0xFF818CF8)), RoundedCornerShape(14.dp)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Layers,
+                            contentDescription = "Overlay Permission",
+                            tint = Color.White,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Overlay Permission",
+                            color = Color.White,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Spacer(Modifier.height(2.dp))
+                        Text(
+                            text = "Display floating window over other apps",
+                            color = Color(0xFF7B93B8),
+                            fontSize = 11.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(20.dp),
+                        color = if (hasOverlayPermission) Color(0xFF064E3B) else Color(0xFF2E1B5B),
+                        border = BorderStroke(
+                            1.dp,
+                            if (hasOverlayPermission) Color(0xFF10B981) else Color(0xFF7C3AED)
+                        )
+                    ) {
+                        Text(
+                            text = if (hasOverlayPermission) "Granted" else "Required",
+                            color = if (hasOverlayPermission) Color(0xFF34D399) else Color(0xFFC4B5FD),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                        )
+                    }
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                        contentDescription = null,
+                        tint = Color(0xFF7B93B8),
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+        }
+
+        // Card 2: Storage Permission
+        Surface(
+            shape = RoundedCornerShape(16.dp),
+            color = Color(0xFF0A1328),
+            border = BorderStroke(1.dp, Color(0xFF1E2F52)),
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onRequestStoragePermission)
+                .testTag("welcome_grant_storage_button")
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp, vertical = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(48.dp)
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(
+                                Brush.linearGradient(
+                                    colors = listOf(Color(0xFF06B6D4), Color(0xFF2563EB))
+                                )
+                            )
+                            .border(BorderStroke(1.dp, Color(0xFF38BDF8)), RoundedCornerShape(14.dp)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Folder,
+                            contentDescription = "Storage Permission",
+                            tint = Color.White,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Storage Permission",
+                            color = Color.White,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Spacer(Modifier.height(2.dp))
+                        Text(
+                            text = "Read and write files on device storage",
+                            color = Color(0xFF7B93B8),
+                            fontSize = 11.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(20.dp),
+                        color = if (hasStoragePermission) Color(0xFF064E3B) else Color(0xFF0C2D57),
+                        border = BorderStroke(
+                            1.dp,
+                            if (hasStoragePermission) Color(0xFF10B981) else Color(0xFF3B82F6)
+                        )
+                    ) {
+                        Text(
+                            text = if (hasStoragePermission) "Granted" else "Required",
+                            color = if (hasStoragePermission) Color(0xFF34D399) else Color(0xFF93C5FD),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                        )
+                    }
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                        contentDescription = null,
+                        tint = Color(0xFF7B93B8),
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+        }
+
+        // Grant Permissions Button
+        Button(
+            onClick = {
+                if (!hasOverlayPermission) {
+                    onRequestOverlayPermission()
+                } else if (!hasStoragePermission) {
+                    onRequestStoragePermission()
+                } else {
+                    onRequestOverlayPermission()
+                }
+            },
+            colors = ButtonDefaults.buttonColors(
+                containerColor = Color(0xFF5B4DFF),
+                contentColor = Color.White
+            ),
+            shape = RoundedCornerShape(14.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(50.dp)
+                .testTag("grant_permissions_button")
+        ) {
+            Text(
+                text = "Grant Permissions",
+                color = Color.White,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold
+            )
         }
     }
 }
@@ -2233,6 +2346,7 @@ private fun SavedProjectsScreenContent(
     onCreateNewApp: () -> Unit,
     onOpenProject: (StudioProjectEntity) -> Unit,
     onEditProject: (StudioProjectEntity) -> Unit,
+    onDuplicateProject: (StudioProjectEntity) -> Unit = {},
     onDeleteProject: (Long) -> Unit,
     onCreateStarterProject: (String, String, String) -> Unit
 ) {
@@ -2302,17 +2416,17 @@ private fun SavedProjectsScreenContent(
             listOf("All", "Recent", "Starred").forEach { tab ->
                 val isSelected = selectedFilter == tab
                 Surface(
-                    shape = RoundedCornerShape(18.dp),
-                    color = if (isSelected) StudioIndigoPrimary else StudioCardBg,
-                    border = BorderStroke(1.dp, if (isSelected) StudioIndigoAccent else StudioCardBorder),
+                    shape = RoundedCornerShape(20.dp),
+                    color = if (isSelected) Color(0xFF4F46E5) else Color(0xFF0A1328),
+                    border = BorderStroke(1.dp, if (isSelected) Color(0xFF818CF8) else Color(0xFF1E2F52)),
                     modifier = Modifier.clickable { selectedFilter = tab }
                 ) {
                     Text(
                         text = tab,
-                        color = if (isSelected) Color.White else StudioTextSecondary,
+                        color = if (isSelected) Color.White else Color(0xFFCBD5E1),
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
+                        modifier = Modifier.padding(horizontal = 18.dp, vertical = 7.dp)
                     )
                 }
             }
@@ -2325,18 +2439,18 @@ private fun SavedProjectsScreenContent(
             value = searchQuery,
             onValueChange = { searchQuery = it },
             placeholder = {
-                Text("Search projects...", color = StudioTextSecondary, fontSize = 13.sp)
+                Text("Search projects...", color = Color(0xFF7B93B8), fontSize = 13.sp)
             },
             leadingIcon = {
-                Icon(Icons.Default.Search, contentDescription = null, tint = StudioTextSecondary)
+                Icon(Icons.Default.Search, contentDescription = null, tint = Color(0xFF7B93B8))
             },
             singleLine = true,
-            shape = RoundedCornerShape(12.dp),
+            shape = RoundedCornerShape(14.dp),
             colors = OutlinedTextFieldDefaults.colors(
-                focusedContainerColor = StudioCardBg,
-                unfocusedContainerColor = StudioCardBg,
-                focusedBorderColor = StudioIndigoAccent,
-                unfocusedBorderColor = StudioCardBorder,
+                focusedContainerColor = Color(0xFF0A1328),
+                unfocusedContainerColor = Color(0xFF0A1328),
+                focusedBorderColor = Color(0xFF3B82F6),
+                unfocusedBorderColor = Color(0xFF1E2F52),
                 focusedTextColor = Color.White,
                 unfocusedTextColor = Color.White
             ),
@@ -2355,31 +2469,8 @@ private fun SavedProjectsScreenContent(
                         project = project,
                         onOpen = { onOpenProject(project) },
                         onEdit = { onEditProject(project) },
+                        onDuplicate = { onDuplicateProject(project) },
                         onDelete = { onDeleteProject(project.id) }
-                    )
-                }
-            } else {
-                val showcaseItems = listOf(
-                    Triple("NeuraSelf-UwU", "Modified 2h ago", Color(0xFF7C3AED)),
-                    Triple("My First App", "Modified 5h ago", Color(0xFF3B82F6)),
-                    Triple("Weather App", "Modified 1d ago", Color(0xFF0284C7)),
-                    Triple("Todo List", "Modified 2d ago", Color(0xFF16A34A)),
-                    Triple("Music Player", "Modified 3d ago", Color(0xFFEC4899)),
-                    Triple("Note Keeper", "Modified 4d ago", Color(0xFF0EA5E9)),
-                    Triple("E-Commerce App", "Modified 5d ago", Color(0xFF2563EB)),
-                    Triple("Game App", "Modified 1w ago", Color(0xFF475569))
-                ).filter {
-                    searchQuery.isBlank() || it.first.contains(searchQuery, ignoreCase = true)
-                }
-                items(showcaseItems) { (title, subtitle, color) ->
-                    StarterProjectListCard(
-                        title = title,
-                        subtitle = subtitle,
-                        badgeColor = color,
-                        onClick = {
-                            val slug = title.lowercase().replace(Regex("[^a-z0-9]"), "")
-                            onCreateStarterProject(title, "com.appstudio.$slug", "$title Panel")
-                        }
                     )
                 }
             }

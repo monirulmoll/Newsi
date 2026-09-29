@@ -143,6 +143,7 @@ class MainActivity : ComponentActivity() {
                             onOpenExistingPicker = { viewModel.openExistingProjectsPicker(true) },
                             onDismissExistingPicker = { viewModel.openExistingProjectsPicker(false) },
                             onSelectProject = viewModel::openExistingProject,
+                            onDuplicateProject = viewModel::duplicateProject,
                             onDeleteProject = viewModel::deleteProject,
                             onOpenEditProjectDialog = { proj -> viewModel.openEditProjectDialog(proj) },
                             onDismissEditProjectDialog = { viewModel.openEditProjectDialog(null) },
@@ -854,31 +855,14 @@ fun StudioCanvasBuilderScreen(
                         }
 
                         Column(modifier = Modifier.weight(1f, fill = false)) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
-                            ) {
-                                Text(
-                                    text = project.overlayTitle.ifBlank { project.name },
-                                    style = MaterialTheme.typography.titleSmall,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    color = Color.White,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                                Text(
-                                    text = "(Edit)",
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF38BDF8)
-                                )
-                                Icon(
-                                    imageVector = Icons.Default.Edit,
-                                    contentDescription = "Edit Floating Panel Name & Logo",
-                                    tint = Color(0xFF38BDF8),
-                                    modifier = Modifier.size(13.dp)
-                                )
-                            }
+                            Text(
+                                text = project.overlayTitle.ifBlank { project.name },
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = Color.White,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
                             Text(
                                 text = "Floating Panel Studio • ${project.canvasWidthDp}×${project.canvasHeightDp} dp",
                                 style = MaterialTheme.typography.labelSmall,
@@ -890,31 +874,6 @@ fun StudioCanvasBuilderScreen(
                     }
                 },
                 actions = {
-                    Button(
-                        onClick = onOpenEditCode,
-                        shape = RoundedCornerShape(8.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFF17223B),
-                            contentColor = Color(0xFF38BDF8)
-                        ),
-                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp),
-                        modifier = Modifier
-                            .padding(end = 5.dp)
-                            .testTag("edit_code_button")
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Code,
-                            contentDescription = "Edit Kotlin Widget Code",
-                            modifier = Modifier.size(14.dp)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = "Code",
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-
                     Button(
                         onClick = onDownloadFloatingWindow,
                         shape = RoundedCornerShape(8.dp),
@@ -1006,17 +965,6 @@ fun StudioCanvasBuilderScreen(
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
-            // Top bar showing only user-added widgets; clicking any widget opens its Edit Mode
-            ComponentTrackerBanner(
-                summary = trackerSummary,
-                components = components,
-                selectedComponentId = uiState.selectedComponentId,
-                onSelectComponentForEdit = { compId ->
-                    onSelectComponent(compId)
-                },
-                onOpenEditFloatingPanel = onOpenEditFloatingPanel
-            )
-
             // SKETCHWARE SPLIT IDE WORKSPACE (Left Vertical Palette + Right Android Phone Frame)
             SketchwareStudioSplitWorkspace(
                 project = project,
@@ -1036,67 +984,6 @@ fun StudioCanvasBuilderScreen(
                 onClearCanvas = onClearCanvas,
                 modifier = Modifier.weight(1f)
             )
-
-            if ((!uiState.hasOverlayPermission || !uiState.hasStoragePermission) && selectedComponent == null) {
-                Surface(
-                    color = Color(0xFFF8FAFC),
-                    border = BorderStroke(1.dp, Color(0xFFCBD5E1)),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag("studio_workspace_permissions_bar")
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 10.dp, vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Text(
-                            text = "Permissions Needed:",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = Color(0xFF0F172A),
-                            fontWeight = FontWeight.ExtraBold,
-                            modifier = Modifier.weight(1f)
-                        )
-                        if (!uiState.hasStoragePermission) {
-                            Button(
-                                onClick = {
-                                    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
-                                        runtimeStoragePermissionLauncher.launch(
-                                            arrayOf(
-                                                Manifest.permission.READ_EXTERNAL_STORAGE,
-                                                Manifest.permission.WRITE_EXTERNAL_STORAGE
-                                            )
-                                        )
-                                    } else {
-                                        LocalConfigStateWriter.requestStoragePermission(context)
-                                    }
-                                },
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD97706)),
-                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
-                                shape = RoundedCornerShape(8.dp),
-                                modifier = Modifier.testTag("workspace_grant_storage_button")
-                            ) {
-                                Text("Allow Storage", fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                            }
-                        }
-                        if (!uiState.hasOverlayPermission) {
-                            Button(
-                                onClick = {
-                                    LocalConfigStateWriter.requestOverlayPermission(context)
-                                },
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2563EB)),
-                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
-                                shape = RoundedCornerShape(8.dp),
-                                modifier = Modifier.testTag("workspace_grant_overlay_button")
-                            ) {
-                                Text("Allow Overlay", fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                            }
-                        }
-                    }
-                }
-            }
         }
     }
 }

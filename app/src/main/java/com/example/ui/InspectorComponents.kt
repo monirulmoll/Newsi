@@ -10,7 +10,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -22,21 +21,13 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Description
-import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Folder
-import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Token
-import androidx.compose.material.icons.filled.Tune
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
@@ -54,7 +45,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -63,12 +53,15 @@ import androidx.compose.ui.unit.sp
 import com.example.data.CanvasComponentEntity
 import java.io.File
 
-private val DockBg = Color(0xFF0E1528)
-private val DockCardBorder = Color(0xFF233052)
-private val DockInputBg = Color(0xFF131C33)
-private val DockIndigo = Color(0xFF5B46F6)
-private val DockPurple = Color(0xFF7C3AED)
-private val DockTextSecondary = Color(0xFF94A3B8)
+private val InspectorDarkBg = Color(0xFF050B18)
+private val InspectorFieldBg = Color(0xFF081329)
+private val InspectorFieldBorder = Color(0xFF1B325F)
+private val InspectorTabInactiveBg = Color(0xFF081226)
+private val InspectorTabInactiveBorder = Color(0xFF1A2C4E)
+private val InspectorPurpleButton = Color(0xFF5B46F6)
+private val InspectorPurpleAccent = Color(0xFF4F46E5)
+private val InspectorSubtitleColor = Color(0xFF7B93B8)
+private val InspectorPlaceholderColor = Color(0xFF6482AD)
 
 private fun resolveDocumentUriToStoragePath(uri: Uri, fallback: String): String {
     val rawPath = uri.path ?: return fallback
@@ -153,7 +146,7 @@ fun ComponentPropertyInspectorSheet(
     var currentValue by remember(component.id, component.currentValue) { mutableStateOf(component.currentValue) }
     var targetFile by remember(component.id, component.targetFilePath) { mutableStateOf(component.targetFilePath) }
 
-    // Directory icon on Widget Name / Label selects ANY source file to replace/merge onto Target Path
+    // Directory icon on "Select your main file" selects ANY source file to replace/merge onto Target Path
     val sourceFilePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri ->
@@ -162,7 +155,7 @@ fun ComponentPropertyInspectorSheet(
         }
     }
 
-    // Directory icon on Target Path selects the destination target file path
+    // Directory icon on "Target Path" selects the destination target file path
     val targetDocumentPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri ->
@@ -207,30 +200,20 @@ fun ComponentPropertyInspectorSheet(
     }
 
     Surface(
-        shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
-        color = DockBg,
-        border = BorderStroke(1.dp, DockCardBorder),
-        tonalElevation = 10.dp,
+        shape = RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp),
+        color = InspectorDarkBg,
+        border = BorderStroke(1.dp, Color(0xFF152342)),
+        tonalElevation = 12.dp,
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+                .padding(horizontal = 18.dp, vertical = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // Drag Handle Pill
-            Box(
-                modifier = Modifier
-                    .width(36.dp)
-                    .height(4.dp)
-                    .clip(RoundedCornerShape(2.dp))
-                    .background(Color(0xFF334155))
-                    .align(Alignment.CenterHorizontally)
-            )
-
-            // Header Row ("Switch/Button/Slider Widget" + "Panel Name & Logo" + Close '✕')
+            // Header Row matching screenshot: Back arrow + Purple Cube Icon + "Toggle Widget / Configure widget properties & target path" + "Button #1" pill + '✕'
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -241,12 +224,24 @@ fun ComponentPropertyInspectorSheet(
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                     modifier = Modifier.weight(1f)
                 ) {
+                    IconButton(
+                        onClick = onClose,
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back",
+                            tint = Color.White,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+
                     Box(
                         modifier = Modifier
-                            .size(38.dp)
-                            .clip(RoundedCornerShape(10.dp))
+                            .size(44.dp)
+                            .clip(RoundedCornerShape(12.dp))
                             .background(
-                                Brush.linearGradient(listOf(DockIndigo, DockPurple))
+                                Brush.linearGradient(listOf(InspectorPurpleAccent, InspectorPurpleButton))
                             ),
                         contentAlignment = Alignment.Center
                     ) {
@@ -254,21 +249,23 @@ fun ComponentPropertyInspectorSheet(
                             imageVector = Icons.Default.Token,
                             contentDescription = null,
                             tint = Color.White,
-                            modifier = Modifier.size(20.dp)
+                            modifier = Modifier.size(22.dp)
                         )
                     }
+
                     Column(modifier = Modifier.weight(1f)) {
+                        val readableType = component.type.lowercase().replaceFirstChar { it.uppercase() }
                         Text(
-                            text = "${component.type.lowercase().replaceFirstChar { it.uppercase() }} Widget",
+                            text = "$readableType Widget",
                             color = Color.White,
-                            fontSize = 14.sp,
+                            fontSize = 16.sp,
                             fontWeight = FontWeight.ExtraBold,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
                         Text(
-                            text = "Select source file & target path to replace/merge on trigger",
-                            color = DockTextSecondary,
+                            text = "Configure widget properties & target path",
+                            color = InspectorSubtitleColor,
                             fontSize = 11.sp,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
@@ -278,32 +275,34 @@ fun ComponentPropertyInspectorSheet(
 
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Surface(
-                        color = DockInputBg,
-                        shape = RoundedCornerShape(10.dp),
-                        border = BorderStroke(1.dp, DockCardBorder),
-                        modifier = Modifier.clickable { onOpenEditFloatingPanel() }
+                        color = Color(0xFF091328),
+                        shape = RoundedCornerShape(12.dp),
+                        border = BorderStroke(1.dp, Color(0xFF1E335C))
                     ) {
                         Text(
-                            text = "Widget #${component.id}",
-                            color = DockTextSecondary,
-                            fontSize = 10.sp,
+                            text = label.ifBlank { component.label },
+                            color = Color.White,
+                            fontSize = 12.sp,
                             fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
                         )
                     }
+
                     IconButton(
                         onClick = onClose,
                         modifier = Modifier
-                            .size(28.dp)
+                            .size(30.dp)
                             .testTag("inspector_close_button")
                     ) {
                         Icon(
                             imageVector = Icons.Default.Close,
                             contentDescription = "Close inspector",
-                            tint = DockTextSecondary,
+                            tint = Color.White,
                             modifier = Modifier.size(18.dp)
                         )
                     }
@@ -313,24 +312,27 @@ fun ComponentPropertyInspectorSheet(
             // 3 Tabs: General | Style | Advanced
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 listOf("General", "Style", "Advanced").forEach { tab ->
                     val isSelected = activeTab == tab
                     Surface(
-                        shape = RoundedCornerShape(10.dp),
-                        color = if (isSelected) DockIndigo else DockInputBg,
-                        border = BorderStroke(1.dp, if (isSelected) Color(0xFF818CF8) else DockCardBorder),
+                        shape = RoundedCornerShape(12.dp),
+                        color = if (isSelected) InspectorPurpleButton else InspectorTabInactiveBg,
+                        border = BorderStroke(
+                            1.dp,
+                            if (isSelected) Color(0xFF60A5FA) else InspectorTabInactiveBorder
+                        ),
                         modifier = Modifier
                             .weight(1f)
-                            .height(34.dp)
+                            .height(38.dp)
                             .clickable { activeTab = tab }
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             Text(
                                 text = tab,
-                                color = if (isSelected) Color.White else DockTextSecondary,
-                                fontSize = 12.sp,
+                                color = if (isSelected) Color.White else Color(0xFFE2E8F0),
+                                fontSize = 13.sp,
                                 fontWeight = FontWeight.Bold
                             )
                         }
@@ -340,221 +342,169 @@ fun ComponentPropertyInspectorSheet(
 
             when (activeTab) {
                 "General" -> {
-                    val hasSelectedFile = customSourceFilePath.isNotBlank()
-                    val selectedFileName = remember(customSourceFilePath, label) {
+                    val selectedFileName = remember(customSourceFilePath) {
                         if (customSourceFilePath.isNotBlank()) {
-                            File(customSourceFilePath).name.ifBlank { label }
+                            File(customSourceFilePath).name.ifBlank { customSourceFilePath }
                         } else {
-                            label
+                            ""
                         }
                     }
 
-                    // 1. Widget Name / Label OR Selected File Display (hides pencil & text input once a file is selected!)
-                    if (hasSelectedFile) {
-                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = "Widget Name / Label",
-                                    color = Color(0xFFCBD5E1),
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                                Surface(
-                                    color = Color(0xFF064E3B),
-                                    border = BorderStroke(1.dp, Color(0xFF10B981)),
-                                    shape = RoundedCornerShape(99.dp)
-                                ) {
-                                    Row(
-                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.CheckCircle,
-                                            contentDescription = "File Selected",
-                                            tint = Color(0xFF34D399),
-                                            modifier = Modifier.size(12.dp)
-                                        )
-                                        Text(
-                                            text = "File Selected",
-                                            color = Color(0xFF34D399),
-                                            fontSize = 10.sp,
-                                            fontWeight = FontWeight.ExtraBold
-                                        )
-                                    }
-                                }
-                            }
-
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                // Pencil icon and editable text box are removed and replaced by the selected file name box
-                                Surface(
-                                    shape = RoundedCornerShape(10.dp),
-                                    color = Color(0xFF0F292A),
-                                    border = BorderStroke(1.5.dp, Color(0xFF10B981)),
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .clickable {
-                                            sourceFilePickerLauncher.launch(arrayOf("*/*"))
-                                        }
-                                        .testTag("inspector_label_input")
-                                ) {
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(horizontal = 12.dp, vertical = 10.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.SpaceBetween
-                                    ) {
-                                        Column(modifier = Modifier.weight(1f)) {
-                                            Text(
-                                                text = "FILE SELECTED (READY TO REPLACE / MERGE)",
-                                                color = Color(0xFF34D399),
-                                                fontSize = 9.sp,
-                                                fontWeight = FontWeight.ExtraBold
-                                            )
-                                            Spacer(modifier = Modifier.height(2.dp))
-                                            Text(
-                                                text = selectedFileName,
-                                                color = Color.White,
-                                                fontSize = 13.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis
-                                            )
-                                        }
-                                        IconButton(
-                                            onClick = {
-                                                customSourceFilePath = ""
-                                                onSaveComponent(
-                                                    buildUpdated().copy(customImagePath = "")
-                                                )
-                                            },
-                                            modifier = Modifier
-                                                .size(24.dp)
-                                                .testTag("inspector_clear_selected_file_button")
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Default.Close,
-                                                contentDescription = "Clear selected file",
-                                                tint = Color(0xFF94A3B8),
-                                                modifier = Modifier.size(15.dp)
-                                            )
-                                        }
-                                    }
-                                }
-
-                                // Directory icon to pick/change the selected file
-                                Box(
-                                    modifier = Modifier
-                                        .size(42.dp)
-                                        .clip(RoundedCornerShape(10.dp))
-                                        .background(
-                                            Brush.linearGradient(listOf(DockIndigo, DockPurple))
-                                        )
-                                        .clickable {
-                                            sourceFilePickerLauncher.launch(arrayOf("*/*"))
-                                        }
-                                        .testTag("inspector_select_source_file_button"),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Folder,
-                                        contentDescription = "Select File",
-                                        tint = Color.White,
-                                        modifier = Modifier.size(19.dp)
-                                    )
-                                }
-                            }
-                        }
-                    } else {
-                        InspectorFieldRow(
-                            title = "Widget Name / Label",
-                            leadingIcon = Icons.Default.Edit,
+                    // 1. Widget Name (Full-width clean input without leading/trailing icon boxes)
+                    Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                        Text(
+                            text = "Widget Name",
+                            color = Color(0xFFCBD5E1),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        OutlinedTextField(
                             value = label,
                             onValueChange = {
                                 label = it
                                 onSaveComponent(buildUpdated())
                             },
-                            placeholder = "Enter widget name or tap folder icon to select file...",
-                            testTag = "inspector_label_input",
-                            trailingFolderTestTag = "inspector_select_source_file_button",
-                            trailingFolderClick = {
-                                sourceFilePickerLauncher.launch(arrayOf("*/*"))
-                            }
+                            placeholder = {
+                                Text("Button #1", color = InspectorPlaceholderColor, fontSize = 13.sp)
+                            },
+                            singleLine = true,
+                            shape = RoundedCornerShape(14.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedContainerColor = InspectorFieldBg,
+                                unfocusedContainerColor = InspectorFieldBg,
+                                focusedBorderColor = Color(0xFF3B82F6),
+                                unfocusedBorderColor = InspectorFieldBorder,
+                                focusedTextColor = Color.White,
+                                unfocusedTextColor = Color.White
+                            ),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("inspector_label_input")
                         )
                     }
 
-                    // 2. Target Path (with Folder picker button)
-                    InspectorFieldRow(
-                        title = "Target Path",
-                        leadingIcon = Icons.Default.Folder,
-                        value = targetFile,
-                        onValueChange = {
-                            targetFile = it
-                            onSaveComponent(buildUpdated())
-                        },
-                        placeholder = "/storage/emulated/0/app.apk",
-                        testTag = "inspector_target_path_input",
-                        trailingFolderTestTag = "inspector_select_target_path_button",
-                        trailingFolderClick = {
-                            targetDocumentPickerLauncher.launch(arrayOf("*/*"))
-                        }
-                    )
+                    // 2. Select your main file ("Select file" box + purple folder button on right)
+                    Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                        Text(
+                            text = "Select your main file",
+                            color = Color(0xFFCBD5E1),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Surface(
+                                shape = RoundedCornerShape(14.dp),
+                                color = InspectorFieldBg,
+                                border = BorderStroke(1.dp, InspectorFieldBorder),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(50.dp)
+                                    .clickable {
+                                        sourceFilePickerLauncher.launch(arrayOf("*/*"))
+                                    }
+                                    .testTag("inspector_main_file_box")
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 14.dp),
+                                    contentAlignment = Alignment.CenterStart
+                                ) {
+                                    Text(
+                                        text = if (selectedFileName.isNotBlank()) selectedFileName else "Select file",
+                                        color = if (selectedFileName.isNotBlank()) Color.White else InspectorPlaceholderColor,
+                                        fontSize = 13.sp,
+                                        fontWeight = if (selectedFileName.isNotBlank()) FontWeight.SemiBold else FontWeight.Medium,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
 
-                    // 3. Byte Offset & ON/OFF Payload
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            InspectorFieldRow(
-                                title = "Offset Hex",
-                                leadingIcon = Icons.Default.Description,
-                                value = byteOffset,
-                                onValueChange = {
-                                    byteOffset = it
-                                    onSaveComponent(buildUpdated())
-                                },
-                                placeholder = "0x04",
-                                testTag = "inspector_offset_input",
-                                trailingFolderClick = null
-                            )
+                            Box(
+                                modifier = Modifier
+                                    .size(48.dp)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(InspectorPurpleButton)
+                                    .clickable {
+                                        sourceFilePickerLauncher.launch(arrayOf("*/*"))
+                                    }
+                                    .testTag("inspector_select_source_file_button"),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Folder,
+                                    contentDescription = "Select Main File",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
                         }
-                        Column(modifier = Modifier.weight(1f)) {
-                            InspectorFieldRow(
-                                title = "ON Value",
-                                leadingIcon = Icons.Default.Check,
-                                value = onPayload,
+                    }
+
+                    // 3. Target Path (Full-width dark input + purple folder button on right)
+                    Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                        Text(
+                            text = "Target Path",
+                            color = Color(0xFFCBD5E1),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            OutlinedTextField(
+                                value = targetFile,
                                 onValueChange = {
-                                    onPayload = it
+                                    targetFile = it
                                     onSaveComponent(buildUpdated())
                                 },
-                                placeholder = "On",
-                                testTag = "inspector_on_payload_input",
-                                trailingFolderClick = null
-                            )
-                        }
-                        Column(modifier = Modifier.weight(1f)) {
-                            InspectorFieldRow(
-                                title = "OFF Value",
-                                leadingIcon = Icons.Default.Close,
-                                value = offPayload,
-                                onValueChange = {
-                                    offPayload = it
-                                    onSaveComponent(buildUpdated())
+                                placeholder = {
+                                    Text(
+                                        "/storage/emulated/0/app.apk",
+                                        color = InspectorPlaceholderColor,
+                                        fontSize = 13.sp
+                                    )
                                 },
-                                placeholder = "Off",
-                                testTag = "inspector_off_payload_input",
-                                trailingFolderClick = null
+                                singleLine = true,
+                                shape = RoundedCornerShape(14.dp),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedContainerColor = InspectorFieldBg,
+                                    unfocusedContainerColor = InspectorFieldBg,
+                                    focusedBorderColor = Color(0xFF3B82F6),
+                                    unfocusedBorderColor = InspectorFieldBorder,
+                                    focusedTextColor = Color.White,
+                                    unfocusedTextColor = Color.White
+                                ),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .testTag("inspector_target_path_input")
                             )
+
+                            Box(
+                                modifier = Modifier
+                                    .size(48.dp)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(InspectorPurpleButton)
+                                    .clickable {
+                                        targetDocumentPickerLauncher.launch(arrayOf("*/*"))
+                                    }
+                                    .testTag("inspector_select_target_path_button"),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Folder,
+                                    contentDescription = "Select Target Path",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
                         }
                     }
                 }
@@ -562,68 +512,116 @@ fun ComponentPropertyInspectorSheet(
                 "Style" -> {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            InspectorFieldRow(
-                                title = "BG Hex",
-                                leadingIcon = Icons.Default.Image,
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(5.dp)
+                        ) {
+                            Text("BG Hex", color = Color(0xFFCBD5E1), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            OutlinedTextField(
                                 value = bgHex,
                                 onValueChange = {
                                     bgHex = it
                                     onSaveComponent(buildUpdated())
                                 },
-                                placeholder = "#131C33",
-                                testTag = "inspector_bg_hex_input",
-                                trailingFolderClick = null
+                                singleLine = true,
+                                shape = RoundedCornerShape(14.dp),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedContainerColor = InspectorFieldBg,
+                                    unfocusedContainerColor = InspectorFieldBg,
+                                    focusedBorderColor = Color(0xFF3B82F6),
+                                    unfocusedBorderColor = InspectorFieldBorder,
+                                    focusedTextColor = Color.White,
+                                    unfocusedTextColor = Color.White
+                                ),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .testTag("inspector_bg_hex_input")
                             )
                         }
-                        Column(modifier = Modifier.weight(1f)) {
-                            InspectorFieldRow(
-                                title = "Text Hex",
-                                leadingIcon = Icons.Default.Edit,
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(5.dp)
+                        ) {
+                            Text("Text Hex", color = Color(0xFFCBD5E1), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            OutlinedTextField(
                                 value = textHex,
                                 onValueChange = {
                                     textHex = it
                                     onSaveComponent(buildUpdated())
                                 },
-                                placeholder = "#FFFFFF",
-                                testTag = "inspector_text_hex_input",
-                                trailingFolderClick = null
+                                singleLine = true,
+                                shape = RoundedCornerShape(14.dp),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedContainerColor = InspectorFieldBg,
+                                    unfocusedContainerColor = InspectorFieldBg,
+                                    focusedBorderColor = Color(0xFF3B82F6),
+                                    unfocusedBorderColor = InspectorFieldBorder,
+                                    focusedTextColor = Color.White,
+                                    unfocusedTextColor = Color.White
+                                ),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .testTag("inspector_text_hex_input")
                             )
                         }
                     }
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            InspectorFieldRow(
-                                title = "Width (dp)",
-                                leadingIcon = Icons.Default.Tune,
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(5.dp)
+                        ) {
+                            Text("Width (dp)", color = Color(0xFFCBD5E1), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            OutlinedTextField(
                                 value = widthDp,
                                 onValueChange = {
                                     widthDp = it
                                     onSaveComponent(buildUpdated())
                                 },
-                                placeholder = "196",
-                                testTag = "inspector_width_input",
-                                trailingFolderClick = null
+                                singleLine = true,
+                                shape = RoundedCornerShape(14.dp),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedContainerColor = InspectorFieldBg,
+                                    unfocusedContainerColor = InspectorFieldBg,
+                                    focusedBorderColor = Color(0xFF3B82F6),
+                                    unfocusedBorderColor = InspectorFieldBorder,
+                                    focusedTextColor = Color.White,
+                                    unfocusedTextColor = Color.White
+                                ),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .testTag("inspector_width_input")
                             )
                         }
-                        Column(modifier = Modifier.weight(1f)) {
-                            InspectorFieldRow(
-                                title = "Height (dp)",
-                                leadingIcon = Icons.Default.Tune,
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(5.dp)
+                        ) {
+                            Text("Height (dp)", color = Color(0xFFCBD5E1), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            OutlinedTextField(
                                 value = heightDp,
                                 onValueChange = {
                                     heightDp = it
                                     onSaveComponent(buildUpdated())
                                 },
-                                placeholder = "44",
-                                testTag = "inspector_height_input",
-                                trailingFolderClick = null
+                                singleLine = true,
+                                shape = RoundedCornerShape(14.dp),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedContainerColor = InspectorFieldBg,
+                                    unfocusedContainerColor = InspectorFieldBg,
+                                    focusedBorderColor = Color(0xFF3B82F6),
+                                    unfocusedBorderColor = InspectorFieldBorder,
+                                    focusedTextColor = Color.White,
+                                    unfocusedTextColor = Color.White
+                                ),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .testTag("inspector_height_input")
                             )
                         }
                     }
@@ -639,7 +637,7 @@ fun ComponentPropertyInspectorSheet(
                                 val updated = buildUpdated()
                                 onTriggerLive(updated, updated.currentValue)
                             },
-                            border = BorderStroke(1.dp, DockCardBorder),
+                            border = BorderStroke(1.dp, InspectorFieldBorder),
                             modifier = Modifier
                                 .weight(1f)
                                 .testTag("inspector_test_live_button")
@@ -650,26 +648,12 @@ fun ComponentPropertyInspectorSheet(
                         }
                         OutlinedButton(
                             onClick = { onDuplicateComponent(buildUpdated()) },
-                            border = BorderStroke(1.dp, DockCardBorder),
+                            border = BorderStroke(1.dp, InspectorFieldBorder),
                             modifier = Modifier.weight(1f)
                         ) {
                             Icon(Icons.Default.ContentCopy, contentDescription = null, tint = Color.White, modifier = Modifier.size(15.dp))
                             Spacer(Modifier.width(4.dp))
                             Text("Duplicate", color = Color.White, fontSize = 11.sp)
-                        }
-                    }
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        OutlinedButton(
-                            onClick = onOpenCodeEditor,
-                            border = BorderStroke(1.dp, DockCardBorder),
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Icon(Icons.Default.Code, contentDescription = null, tint = Color(0xFF38BDF8), modifier = Modifier.size(15.dp))
-                            Spacer(Modifier.width(4.dp))
-                            Text("Edit Code", color = Color(0xFF38BDF8), fontSize = 11.sp)
                         }
                         OutlinedButton(
                             onClick = { onDeleteComponent(component) },
@@ -681,118 +665,6 @@ fun ComponentPropertyInspectorSheet(
                             Text("Delete", color = Color(0xFFF87171), fontSize = 11.sp)
                         }
                     }
-                }
-            }
-
-            // Full-width gradient "✓ Save Changes" Button
-            Button(
-                onClick = { onSaveComponent(buildUpdated()) },
-                colors = ButtonDefaults.buttonColors(containerColor = DockIndigo),
-                shape = RoundedCornerShape(12.dp),
-                contentPadding = PaddingValues(vertical = 10.dp),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("inspector_save_button")
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Check,
-                    contentDescription = null,
-                    tint = Color.White,
-                    modifier = Modifier.size(16.dp)
-                )
-                Spacer(Modifier.width(6.dp))
-                Text(
-                    text = "Save Changes",
-                    color = Color.White,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun InspectorFieldRow(
-    title: String,
-    leadingIcon: ImageVector,
-    value: String,
-    onValueChange: (String) -> Unit,
-    placeholder: String,
-    testTag: String,
-    trailingFolderTestTag: String? = null,
-    trailingFolderClick: (() -> Unit)?
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(
-            text = title,
-            color = Color(0xFFCBD5E1),
-            fontSize = 11.sp,
-            fontWeight = FontWeight.SemiBold
-        )
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(38.dp)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(DockInputBg)
-                    .border(BorderStroke(1.dp, DockCardBorder), RoundedCornerShape(10.dp)),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = leadingIcon,
-                    contentDescription = title,
-                    tint = DockTextSecondary,
-                    modifier = Modifier.size(16.dp)
-                )
-            }
-
-            OutlinedTextField(
-                value = value,
-                onValueChange = onValueChange,
-                placeholder = {
-                    Text(placeholder, color = DockTextSecondary, fontSize = 11.sp)
-                },
-                singleLine = true,
-                shape = RoundedCornerShape(10.dp),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedContainerColor = DockInputBg,
-                    unfocusedContainerColor = DockInputBg,
-                    focusedBorderColor = DockIndigo,
-                    unfocusedBorderColor = DockCardBorder,
-                    focusedTextColor = Color.White,
-                    unfocusedTextColor = Color.White
-                ),
-                modifier = Modifier
-                    .weight(1f)
-                    .testTag(testTag)
-            )
-
-            if (trailingFolderClick != null) {
-                Box(
-                    modifier = Modifier
-                        .size(38.dp)
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(
-                            Brush.linearGradient(listOf(DockIndigo, DockPurple))
-                        )
-                        .clickable { trailingFolderClick() }
-                        .then(
-                            if (trailingFolderTestTag != null) Modifier.testTag(trailingFolderTestTag)
-                            else Modifier
-                        ),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Folder,
-                        contentDescription = "Select File",
-                        tint = Color.White,
-                        modifier = Modifier.size(18.dp)
-                    )
                 }
             }
         }
