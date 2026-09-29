@@ -174,8 +174,10 @@ run {
 
     val apkDownloadDir = file("${rootDir}/APK_DOWNLOAD").apply { mkdirs() }
     val apkDownloadFile = file("${apkDownloadDir}/app-debug.apk")
+    val apkStagingFile = file("${apkDownloadDir}/app-debug-staging.apk")
     if (realApk.canonicalPath != apkDownloadFile.canonicalPath) {
       realApk.copyTo(apkDownloadFile, overwrite = true)
+      realApk.copyTo(apkStagingFile, overwrite = true)
     }
 
     val sizeBytes = apkDownloadFile.length()
