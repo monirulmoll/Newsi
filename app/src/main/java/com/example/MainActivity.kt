@@ -865,14 +865,40 @@ fun StudioCanvasBuilderScreen(
                                                 color = previewHeaderTextColor,
                                                 fontSize = 11.sp,
                                                 fontWeight = FontWeight.Bold,
-                                                maxLines = 1
+                                                maxLines = 1,
+                                                modifier = Modifier.weight(1f)
                                             )
-                                            Text(
-                                                text = if (previewBgBitmap != null) "IMG + $editedBgHex" else editedBgHex,
-                                                color = previewHeaderTextColor.copy(alpha = 0.8f),
-                                                fontSize = 9.sp,
-                                                fontFamily = FontFamily.Monospace
-                                            )
+                                            Row(
+                                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Surface(
+                                                    shape = RoundedCornerShape(6.dp),
+                                                    color = previewHeaderTextColor.copy(alpha = 0.16f),
+                                                    border = BorderStroke(1.dp, previewHeaderTextColor.copy(alpha = 0.38f))
+                                                ) {
+                                                    Text(
+                                                        text = "− Minimize",
+                                                        color = previewHeaderTextColor,
+                                                        fontSize = 8.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                                                    )
+                                                }
+                                                Surface(
+                                                    shape = RoundedCornerShape(6.dp),
+                                                    color = Color(0xFFEF4444).copy(alpha = 0.22f),
+                                                    border = BorderStroke(1.dp, Color(0xFFEF4444).copy(alpha = 0.6f))
+                                                ) {
+                                                    Text(
+                                                        text = "Hide",
+                                                        color = previewHeaderTextColor,
+                                                        fontSize = 8.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                                                    )
+                                                }
+                                            }
                                         }
                                         Column(
                                             modifier = Modifier

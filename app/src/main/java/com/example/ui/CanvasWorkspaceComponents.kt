@@ -567,6 +567,7 @@ fun InteractiveOverlayCanvas(
     val density = LocalDensity.current
     val canvasBg = parseHexColorSafe(project.canvasBgColorHex, Color.White)
     var isCollapsedToGoalBubble by remember(project.id) { mutableStateOf(false) }
+    var isHiddenFloatingWindow by remember(project.id) { mutableStateOf(false) }
 
     val activeLogoPath = project.floatingLogoPath.ifBlank { project.appLogoPath }
     val floatingLogoBitmap = remember(activeLogoPath) {
@@ -691,7 +692,32 @@ fun InteractiveOverlayCanvas(
                         .padding(8.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    if (isCollapsedToGoalBubble) {
+                    if (isHiddenFloatingWindow) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Surface(
+                                shape = RoundedCornerShape(99.dp),
+                                color = Color(0xFF1E293B),
+                                border = BorderStroke(1.dp, Color(0xFF38BDF8)),
+                                modifier = Modifier
+                                    .clickable {
+                                        isHiddenFloatingWindow = false
+                                        isCollapsedToGoalBubble = false
+                                    }
+                                    .testTag("canvas_hidden_restore_button")
+                            ) {
+                                Text(
+                                    text = "Floating Window Hidden — Tap to Show",
+                                    color = Color(0xFF38BDF8),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
+                                )
+                            }
+                        }
+                    } else if (isCollapsedToGoalBubble) {
                         val isDarkBubbleBg = remember(project.canvasBgColorHex, canvasBgBitmap) {
                             canvasBgBitmap != null ||
                                 (canvasBg.red * 0.299f + canvasBg.green * 0.587f + canvasBg.blue * 0.114f) < 0.55f ||
@@ -832,12 +858,12 @@ fun InteractiveOverlayCanvas(
 
                                     Row(
                                         verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
                                     ) {
                                         // Quick Change Floating Window Background button on Header Bar
                                         Box(
                                             modifier = Modifier
-                                                .size(22.dp)
+                                                .size(20.dp)
                                                 .clip(CircleShape)
                                                 .background(
                                                     if (isDarkBg) Color.White.copy(alpha = 0.18f)
@@ -852,21 +878,51 @@ fun InteractiveOverlayCanvas(
                                                 imageVector = Icons.Default.Palette,
                                                 contentDescription = "Change Floating Window Background",
                                                 tint = headerTextColor,
-                                                modifier = Modifier.size(12.dp)
+                                                modifier = Modifier.size(11.dp)
                                             )
                                         }
 
-                                        // Minimize to Goal Bubble button ('✕')
-                                        Text(
-                                            text = "✕",
-                                            color = headerTextColor,
-                                            fontSize = 14.sp,
-                                            fontWeight = FontWeight.Bold,
+                                        // Minimize button (collapses to Floating Bubble)
+                                        Surface(
+                                            shape = RoundedCornerShape(7.dp),
+                                            color = if (isDarkBg) Color.White.copy(alpha = 0.18f) else Color.Black.copy(alpha = 0.08f),
+                                            border = BorderStroke(1.dp, headerTextColor.copy(alpha = 0.75f)),
                                             modifier = Modifier
-                                                .clickable { isCollapsedToGoalBubble = true }
-                                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                                                .clickable {
+                                                    isHiddenFloatingWindow = false
+                                                    isCollapsedToGoalBubble = true
+                                                }
                                                 .testTag("floating_panel_collapse_button")
-                                        )
+                                        ) {
+                                            Text(
+                                                text = "Minimize",
+                                                color = headerTextColor,
+                                                fontSize = 9.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
+                                            )
+                                        }
+
+                                        // Hide button (hides Floating Window)
+                                        Surface(
+                                            shape = RoundedCornerShape(7.dp),
+                                            color = if (isDarkBg) Color.White.copy(alpha = 0.18f) else Color.Black.copy(alpha = 0.08f),
+                                            border = BorderStroke(1.dp, headerTextColor.copy(alpha = 0.75f)),
+                                            modifier = Modifier
+                                                .clickable {
+                                                    isCollapsedToGoalBubble = false
+                                                    isHiddenFloatingWindow = true
+                                                }
+                                                .testTag("floating_panel_hide_button")
+                                        ) {
+                                            Text(
+                                                text = "Hide",
+                                                color = headerTextColor,
+                                                fontSize = 9.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
+                                            )
+                                        }
                                     }
                                 }
 

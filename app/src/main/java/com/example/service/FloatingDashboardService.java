@@ -99,6 +99,7 @@ import android.widget.OverScroller;
 import android.widget.SeekBar;
 import android.widget.Switch;
 import android.widget.TextView;
+import android.widget.Toast;
 import androidx.annotation.Nullable;
 import androidx.core.app.NotificationCompat;
 import com.example.MainActivity;
@@ -300,14 +301,26 @@ extends Service {
             bubbleTitleTv.setPadding(this.dpToPx(6), this.dpToPx(4), this.dpToPx(6), this.dpToPx(4));
             goalLogoBubble.addView((View)bubbleTitleTv, (ViewGroup.LayoutParams)new FrameLayout.LayoutParams(-1, -1, 17));
         }
-        TextView closeBtn = new TextView((Context)this);
-        closeBtn.setText((CharSequence)"\u2715");
-        closeBtn.setTextColor(headerContentColor);
-        closeBtn.setTextSize(2, 14.0f);
-        closeBtn.setPadding(this.dpToPx(10), this.dpToPx(4), this.dpToPx(10), this.dpToPx(4));
-        closeBtn.setOnClickListener(v -> {
+        int pillFillColor = useLightHeaderContent ? Color.parseColor((String)"#2EFFFFFF") : Color.parseColor((String)"#140F172A");
+
+        TextView minimizeBtn = new TextView((Context)this);
+        minimizeBtn.setText((CharSequence)"Minimize");
+        minimizeBtn.setTextColor(headerContentColor);
+        minimizeBtn.setTextSize(2, 9.5f);
+        minimizeBtn.setTypeface(Typeface.DEFAULT_BOLD);
+        minimizeBtn.setGravity(17);
+        minimizeBtn.setPadding(this.dpToPx(7), this.dpToPx(3), this.dpToPx(7), this.dpToPx(3));
+        GradientDrawable minBtnBg = new GradientDrawable();
+        minBtnBg.setCornerRadius((float)this.dpToPx(7));
+        minBtnBg.setColor(pillFillColor);
+        minBtnBg.setStroke(this.dpToPx(1), headerContentColor);
+        minimizeBtn.setBackground((Drawable)minBtnBg);
+        LinearLayout.LayoutParams minBtnLp = new LinearLayout.LayoutParams(-2, -2);
+        minBtnLp.rightMargin = this.dpToPx(5);
+        minimizeBtn.setOnClickListener(v -> {
             this.setOverlayFocusable(false);
             panelRoot.setVisibility(8);
+            goalLogoBubble.setAlpha(1.0f);
             goalLogoBubble.setVisibility(0);
             if (this.overlayLayoutParams != null) {
                 this.overlayLayoutParams.width = bubbleSizePx;
@@ -317,7 +330,35 @@ extends Service {
                 this.windowManager.updateViewLayout(this.floatingRootView, (ViewGroup.LayoutParams)this.overlayLayoutParams);
             }
         });
-        header.addView((View)closeBtn);
+        header.addView((View)minimizeBtn, (ViewGroup.LayoutParams)minBtnLp);
+
+        TextView hideBtn = new TextView((Context)this);
+        hideBtn.setText((CharSequence)"Hide");
+        hideBtn.setTextColor(headerContentColor);
+        hideBtn.setTextSize(2, 9.5f);
+        hideBtn.setTypeface(Typeface.DEFAULT_BOLD);
+        hideBtn.setGravity(17);
+        hideBtn.setPadding(this.dpToPx(7), this.dpToPx(3), this.dpToPx(7), this.dpToPx(3));
+        GradientDrawable hideBtnBg = new GradientDrawable();
+        hideBtnBg.setCornerRadius((float)this.dpToPx(7));
+        hideBtnBg.setColor(pillFillColor);
+        hideBtnBg.setStroke(this.dpToPx(1), headerContentColor);
+        hideBtn.setBackground((Drawable)hideBtnBg);
+        hideBtn.setOnClickListener(v -> {
+            this.setOverlayFocusable(false);
+            panelRoot.setVisibility(8);
+            goalLogoBubble.setAlpha(0.0f);
+            goalLogoBubble.setVisibility(0);
+            if (this.overlayLayoutParams != null) {
+                this.overlayLayoutParams.width = bubbleSizePx;
+                this.overlayLayoutParams.height = bubbleSizePx;
+            }
+            if (this.floatingRootView != null && this.windowManager != null) {
+                this.windowManager.updateViewLayout(this.floatingRootView, (ViewGroup.LayoutParams)this.overlayLayoutParams);
+            }
+            Toast.makeText((Context)this, (CharSequence)"Floating Window Hidden. Tap spot or START to show.", (int)0).show();
+        });
+        header.addView((View)hideBtn);
         boolean isAutoFix = DynamicOverlayRegistry.isActiveAutoFixSize();
         FrameLayout canvasFrame = new FrameLayout((Context)this);
         LinearLayout.LayoutParams canvasLp = new LinearLayout.LayoutParams(-1, 0, 1.0f);
@@ -435,6 +476,7 @@ extends Service {
                     }
                     case 1: {
                         if (!this.wasDragged) {
+                            goalLogoBubble.setAlpha(1.0f);
                             goalLogoBubble.setVisibility(8);
                             panelRoot.setVisibility(0);
                             if (FloatingDashboardService.this.overlayLayoutParams != null) {

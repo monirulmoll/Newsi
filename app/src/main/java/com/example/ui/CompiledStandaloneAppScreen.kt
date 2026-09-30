@@ -503,6 +503,7 @@ private fun StandaloneDraggableFloatingWindow(
     val density = LocalDensity.current
     val canvasBg = parseHexColorSafe(project.canvasBgColorHex, Color.White)
     var isCollapsedToGoalBubble by remember(project.id) { mutableStateOf(false) }
+    var isHiddenFloatingWindow by remember(project.id) { mutableStateOf(false) }
 
     var windowOffsetX by remember { mutableFloatStateOf(with(density) { 24.dp.toPx() }) }
     var windowOffsetY by remember { mutableFloatStateOf(with(density) { 140.dp.toPx() }) }
@@ -526,6 +527,12 @@ private fun StandaloneDraggableFloatingWindow(
         project.name.trim().ifEmpty { "Floating Panel" }
     }
 
+    val isDarkCanvasBg = remember(project.canvasBgColorHex, canvasBgBitmap) {
+        canvasBgBitmap != null ||
+            (canvasBg.red * 0.299f + canvasBg.green * 0.587f + canvasBg.blue * 0.114f) < 0.55f
+    }
+    val headerContentColor = if (isDarkCanvasBg) Color.White else Color(0xFF0F172A)
+
     Box(
         modifier = Modifier
             .offset { IntOffset(windowOffsetX.roundToInt(), windowOffsetY.roundToInt()) }
@@ -538,7 +545,27 @@ private fun StandaloneDraggableFloatingWindow(
             }
             .testTag("standalone_live_floating_window")
     ) {
-        if (isCollapsedToGoalBubble) {
+        if (isHiddenFloatingWindow) {
+            Surface(
+                shape = RoundedCornerShape(20.dp),
+                color = Color(0xFF0F172A).copy(alpha = 0.72f),
+                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.45f)),
+                modifier = Modifier
+                    .clickable {
+                        isHiddenFloatingWindow = false
+                        isCollapsedToGoalBubble = false
+                    }
+                    .testTag("standalone_hidden_restore_chip")
+            ) {
+                Text(
+                    text = "👁 Show Panel",
+                    color = Color.White,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                )
+            }
+        } else if (isCollapsedToGoalBubble) {
             Box(
                 modifier = Modifier
                     .size(64.dp)
@@ -579,91 +606,120 @@ private fun StandaloneDraggableFloatingWindow(
             Card(
                 shape = RoundedCornerShape(16.dp),
                 colors = CardDefaults.cardColors(containerColor = canvasBg),
-                border = BorderStroke(2.dp, Color(0xFF4F46E5)),
                 elevation = CardDefaults.cardElevation(defaultElevation = 14.dp),
                 modifier = Modifier.size(
                     width = project.canvasWidthDp.dp.coerceIn(180.dp, 340.dp),
                     height = project.canvasHeightDp.dp.coerceIn(180.dp, 480.dp)
                 )
             ) {
-                Column(modifier = Modifier.fillMaxSize()) {
-                    // Header Bar matching Studio Preview
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(
-                                Brush.horizontalGradient(
-                                    colors = listOf(Color(0xFF4F46E5), Color(0xFF2563EB))
-                                )
-                            )
-                            .padding(horizontal = 10.dp, vertical = 8.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(24.dp)
-                                    .clip(CircleShape)
-                                    .background(Color(0xFF1E3A8A))
-                                    .border(BorderStroke(1.dp, Color.White), CircleShape),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                if (floatingLogoBitmap != null) {
-                                    Image(
-                                        bitmap = floatingLogoBitmap,
-                                        contentDescription = "Floating Panel Logo",
-                                        contentScale = ContentScale.Crop,
-                                        modifier = Modifier
-                                            .fillMaxSize()
-                                            .clip(CircleShape)
-                                    )
-                                } else {
-                                    Text(
-                                        text = "✦",
-                                        color = Color.White,
-                                        fontSize = 10.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
-                            }
-                            Text(
-                                text = resolvedPanelTitle,
-                                color = Color.White,
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Bold,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
-
-                        Text(
-                            text = "✕",
-                            color = Color.White,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier
-                                .clickable { isCollapsedToGoalBubble = true }
-                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(canvasBg)
+                ) {
+                    if (canvasBgBitmap != null) {
+                        Image(
+                            bitmap = canvasBgBitmap,
+                            contentDescription = "Floating Window Background",
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize()
                         )
                     }
 
-                    // Canvas Body matching Studio Preview
-                    Box(modifier = Modifier.fillMaxSize()) {
-                        if (canvasBgBitmap != null) {
-                            Image(
-                                bitmap = canvasBgBitmap,
-                                contentDescription = "Floating Window Background",
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier.fillMaxSize()
-                            )
+                    Column(modifier = Modifier.fillMaxSize()) {
+                        // Header Bar matching Studio Preview with Minimize & Hide buttons
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 10.dp, vertical = 8.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(24.dp)
+                                        .clip(CircleShape)
+                                        .background(headerContentColor.copy(alpha = 0.15f))
+                                        .border(BorderStroke(1.dp, headerContentColor.copy(alpha = 0.5f)), CircleShape),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    if (floatingLogoBitmap != null) {
+                                        Image(
+                                            bitmap = floatingLogoBitmap,
+                                            contentDescription = "Floating Panel Logo",
+                                            contentScale = ContentScale.Crop,
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .clip(CircleShape)
+                                        )
+                                    } else {
+                                        Text(
+                                            text = "✦",
+                                            color = headerContentColor,
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
+                                Text(
+                                    text = resolvedPanelTitle,
+                                    color = headerContentColor,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = headerContentColor.copy(alpha = 0.16f),
+                                    border = BorderStroke(1.dp, headerContentColor.copy(alpha = 0.4f)),
+                                    modifier = Modifier
+                                        .clickable { isCollapsedToGoalBubble = true }
+                                        .testTag("standalone_floating_window_minimize_btn")
+                                ) {
+                                    Text(
+                                        text = "− Minimize",
+                                        color = headerContentColor,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
+                                    )
+                                }
+
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = Color(0xFFEF4444).copy(alpha = 0.22f),
+                                    border = BorderStroke(1.dp, Color(0xFFEF4444).copy(alpha = 0.65f)),
+                                    modifier = Modifier
+                                        .clickable { isHiddenFloatingWindow = true }
+                                        .testTag("standalone_floating_window_hide_btn")
+                                ) {
+                                    Text(
+                                        text = "Hide",
+                                        color = headerContentColor,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
+                                    )
+                                }
+                            }
                         }
 
-                        components.forEach { comp ->
+                        // Canvas Body matching Studio Preview
+                        Box(modifier = Modifier.fillMaxSize()) {
+                            components.forEach { comp ->
                             val isToggle = comp.type == "TOGGLE"
                             val isChecked = comp.currentValue.equals("true", ignoreCase = true) || comp.currentValue == "1"
                             val isDefaultWhite = comp.bgColorHex.isBlank() || comp.bgColorHex.equals("#FFFFFF", ignoreCase = true)
@@ -746,6 +802,7 @@ private fun StandaloneDraggableFloatingWindow(
                                     }
                                 }
                             }
+                        }
                         }
                     }
                 }
