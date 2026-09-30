@@ -177,8 +177,13 @@ extends Service {
     private void showDynamicSystemOverlayWindow() {
         File lf;
         DynamicOverlayRegistry.loadFromBundledAssetsIfEmpty((Context)this);
+        int panelWidthDp = Math.max(180, Math.min(340, DynamicOverlayRegistry.getActiveCanvasWidthDp()));
+        int panelHeightDp = Math.max(160, Math.min(480, DynamicOverlayRegistry.getActiveCanvasHeightDp()));
+        final int currentCanvasW = this.dpToPx(panelWidthDp);
+        final int currentCanvasH = this.dpToPx(panelHeightDp);
+
         int overlayType = Build.VERSION.SDK_INT >= 26 ? 2038 : 2002;
-        this.overlayLayoutParams = new WindowManager.LayoutParams(-2, -2, overlayType, 264, -3);
+        this.overlayLayoutParams = new WindowManager.LayoutParams(currentCanvasW, currentCanvasH, overlayType, 264, -3);
         this.overlayLayoutParams.gravity = 0x800033;
         this.overlayLayoutParams.x = 32;
         this.overlayLayoutParams.y = 160;
@@ -201,16 +206,18 @@ extends Service {
         panelBg.setCornerRadius((float)this.dpToPx(16));
         panelRoot.setBackground((Drawable)panelBg);
         panelRoot.setClipToOutline(true);
+        panelRoot.setClipChildren(true);
 
         if (bgBmp != null) {
+            Bitmap croppedBgBmp = this.createRoundedCenterCropBitmap(bgBmp, currentCanvasW, currentCanvasH, this.dpToPx(16));
             ImageView bgIv = new ImageView((Context)this);
-            bgIv.setImageBitmap(bgBmp);
-            bgIv.setScaleType(ImageView.ScaleType.CENTER_CROP);
+            bgIv.setImageBitmap(croppedBgBmp != null ? croppedBgBmp : bgBmp);
+            bgIv.setScaleType(ImageView.ScaleType.FIT_XY);
             GradientDrawable clipBg = new GradientDrawable();
             clipBg.setCornerRadius((float)this.dpToPx(16));
             bgIv.setBackground((Drawable)clipBg);
             bgIv.setClipToOutline(true);
-            panelRoot.addView((View)bgIv, (ViewGroup.LayoutParams)new FrameLayout.LayoutParams(-1, -1));
+            panelRoot.addView((View)bgIv, (ViewGroup.LayoutParams)new FrameLayout.LayoutParams(currentCanvasW, currentCanvasH));
         }
 
         final LinearLayout container = new LinearLayout((Context)this);
@@ -302,6 +309,10 @@ extends Service {
             this.setOverlayFocusable(false);
             panelRoot.setVisibility(8);
             goalLogoBubble.setVisibility(0);
+            if (this.overlayLayoutParams != null) {
+                this.overlayLayoutParams.width = bubbleSizePx;
+                this.overlayLayoutParams.height = bubbleSizePx;
+            }
             if (this.floatingRootView != null && this.windowManager != null) {
                 this.windowManager.updateViewLayout(this.floatingRootView, (ViewGroup.LayoutParams)this.overlayLayoutParams);
             }
@@ -309,9 +320,7 @@ extends Service {
         header.addView((View)closeBtn);
         boolean isAutoFix = DynamicOverlayRegistry.isActiveAutoFixSize();
         FrameLayout canvasFrame = new FrameLayout((Context)this);
-        int currentCanvasW = this.dpToPx(DynamicOverlayRegistry.getActiveCanvasWidthDp());
-        int currentCanvasH = this.dpToPx(DynamicOverlayRegistry.getActiveCanvasHeightDp());
-        LinearLayout.LayoutParams canvasLp = new LinearLayout.LayoutParams(currentCanvasW, currentCanvasH);
+        LinearLayout.LayoutParams canvasLp = new LinearLayout.LayoutParams(-1, 0, 1.0f);
         OverflowOnlyScrollLayout scrollView = new OverflowOnlyScrollLayout((Context)this);
         FrameLayout.LayoutParams scrollLp = new FrameLayout.LayoutParams(-1, -1);
         if (isAutoFix) {
@@ -348,7 +357,8 @@ extends Service {
                 itemLp.topMargin = this.dpToPx(yDp);
                 freeCanvas.addView(childView, (ViewGroup.LayoutParams)itemLp);
             }
-            if (minTopDp < 0 || this.dpToPx(maxBottomDp) > currentCanvasH) {
+            int bodyHeightPx = Math.max(this.dpToPx(100), currentCanvasH - this.dpToPx(40));
+            if (minTopDp < 0 || this.dpToPx(maxBottomDp) > bodyHeightPx) {
                 freeCanvas.setPadding(0, 0, 0, this.dpToPx(8));
             }
             scrollView.addView((View)freeCanvas, (ViewGroup.LayoutParams)new FrameLayout.LayoutParams(-1, -2));
@@ -388,7 +398,7 @@ extends Service {
         });
         container.addView((View)header, (ViewGroup.LayoutParams)new LinearLayout.LayoutParams(-1, -2));
         container.addView((View)canvasFrame, (ViewGroup.LayoutParams)canvasLp);
-        panelRoot.addView((View)container, (ViewGroup.LayoutParams)new FrameLayout.LayoutParams(-2, -2));
+        panelRoot.addView((View)container, (ViewGroup.LayoutParams)new FrameLayout.LayoutParams(currentCanvasW, currentCanvasH));
 
         final int bubbleTouchSlop = ViewConfiguration.get((Context)this).getScaledTouchSlop();
         goalLogoBubble.setOnTouchListener(new View.OnTouchListener(){
@@ -427,6 +437,10 @@ extends Service {
                         if (!this.wasDragged) {
                             goalLogoBubble.setVisibility(8);
                             panelRoot.setVisibility(0);
+                            if (FloatingDashboardService.this.overlayLayoutParams != null) {
+                                FloatingDashboardService.this.overlayLayoutParams.width = currentCanvasW;
+                                FloatingDashboardService.this.overlayLayoutParams.height = currentCanvasH;
+                            }
                             if (FloatingDashboardService.this.floatingRootView != null && FloatingDashboardService.this.windowManager != null) {
                                 FloatingDashboardService.this.windowManager.updateViewLayout(FloatingDashboardService.this.floatingRootView, (ViewGroup.LayoutParams)FloatingDashboardService.this.overlayLayoutParams);
                             }
@@ -438,7 +452,7 @@ extends Service {
             }
         });
         FrameLayout rootWrapper = new FrameLayout((Context)this);
-        rootWrapper.addView((View)panelRoot, (ViewGroup.LayoutParams)new FrameLayout.LayoutParams(-2, -2));
+        rootWrapper.addView((View)panelRoot, (ViewGroup.LayoutParams)new FrameLayout.LayoutParams(currentCanvasW, currentCanvasH));
         rootWrapper.addView((View)goalLogoBubble, (ViewGroup.LayoutParams)new FrameLayout.LayoutParams(bubbleSizePx, bubbleSizePx));
         synchronized (OVERLAY_LOCK) {
             if (sActiveFloatingRootView != null && sActiveWindowManager != null) {
@@ -464,6 +478,32 @@ extends Service {
             }
             catch (Throwable ignored) {
             }
+        }
+    }
+
+    private Bitmap createRoundedCenterCropBitmap(Bitmap src, int targetW, int targetH, int cornerRadiusPx) {
+        if (src == null || targetW <= 0 || targetH <= 0 || src.getWidth() <= 0 || src.getHeight() <= 0) {
+            return null;
+        }
+        try {
+            float scale = Math.max((float)targetW / (float)src.getWidth(), (float)targetH / (float)src.getHeight());
+            int scaledW = Math.max(targetW, Math.round((float)src.getWidth() * scale));
+            int scaledH = Math.max(targetH, Math.round((float)src.getHeight() * scale));
+            Bitmap scaled = Bitmap.createScaledBitmap((Bitmap)src, (int)scaledW, (int)scaledH, (boolean)true);
+            int cropX = Math.max(0, (scaledW - targetW) / 2);
+            int cropY = Math.max(0, (scaledH - targetH) / 2);
+            Bitmap cropped = Bitmap.createBitmap((Bitmap)scaled, (int)cropX, (int)cropY, (int)targetW, (int)targetH);
+            Bitmap output = Bitmap.createBitmap((int)targetW, (int)targetH, (Bitmap.Config)Bitmap.Config.ARGB_8888);
+            Canvas canvas = new Canvas(output);
+            Paint paint = new Paint(1);
+            BitmapShader shader = new BitmapShader(cropped, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP);
+            paint.setShader((Shader)shader);
+            android.graphics.RectF rect = new android.graphics.RectF(0.0f, 0.0f, (float)targetW, (float)targetH);
+            canvas.drawRoundRect(rect, (float)cornerRadiusPx, (float)cornerRadiusPx, paint);
+            return output;
+        }
+        catch (Throwable t) {
+            return null;
         }
     }
 

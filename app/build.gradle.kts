@@ -154,7 +154,7 @@ run {
   }
 }
 
-run {
+fun syncApkDownloadOutputs() {
   val candidates = listOf(
     layout.buildDirectory.file("outputs/apk/debug/app-debug.apk").get().asFile,
     file("${rootDir}/app/build/outputs/apk/debug/app-debug.apk"),
@@ -187,6 +187,16 @@ run {
     if (!apkDownloadFile.exists() || sizeBytes <= 1_000_000L || !isZipApkHeader) {
       throw GradleException("APK_DOWNLOAD/app-debug.apk verification failed: size=$sizeBytes, validHeader=$isZipApkHeader")
     }
+  }
+}
+
+run {
+  syncApkDownloadOutputs()
+}
+
+tasks.matching { it.name == "packageDebug" || it.name == "assembleDebug" }.configureEach {
+  doLast {
+    syncApkDownloadOutputs()
   }
 }
 

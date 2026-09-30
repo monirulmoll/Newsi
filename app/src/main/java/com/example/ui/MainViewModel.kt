@@ -365,18 +365,52 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
-     * Copies a user-picked Floating Window Background image from the Android Photo Picker into local app storage
+     * Copies a user-picked Floating Window Background image from the Android Photo Picker into local app storage,
+     * center-cropped to the active Floating Window dimensions so it fits the exact floating window size,
      * and invokes [onResult] with its absolute file path.
      */
     fun importFloatingBackgroundUri(uri: Uri, onResult: (String) -> Unit) {
         viewModelScope.launch {
             try {
+                val activeProj = _uiState.value.activeProject
+                val density = appContext.resources.displayMetrics.density.coerceAtLeast(2f)
+                val targetWidthDp = (activeProj?.canvasWidthDp ?: 216).coerceIn(180, 340)
+                val targetHeightDp = (activeProj?.canvasHeightDp ?: 290).coerceIn(160, 480)
+                val targetWidthPx = (targetWidthDp * density).toInt().coerceAtLeast(360)
+                val targetHeightPx = (targetHeightDp * density).toInt().coerceAtLeast(320)
+
                 val destPath = withContext(Dispatchers.IO) {
                     val bgDir = File(appContext.filesDir, "project_backgrounds").apply { mkdirs() }
                     val destFile = File(bgDir, "canvas_bg_${System.currentTimeMillis()}.png")
-                    appContext.contentResolver.openInputStream(uri)?.use { input ->
+                    val rawBytes = appContext.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                    val decoded = if (rawBytes != null && rawBytes.isNotEmpty()) {
+                        android.graphics.BitmapFactory.decodeByteArray(rawBytes, 0, rawBytes.size)
+                    } else {
+                        null
+                    }
+                    if (decoded != null && decoded.width > 0 && decoded.height > 0) {
+                        val scale = maxOf(
+                            targetWidthPx.toFloat() / decoded.width.toFloat(),
+                            targetHeightPx.toFloat() / decoded.height.toFloat()
+                        )
+                        val scaledW = maxOf(targetWidthPx, Math.round(decoded.width * scale))
+                        val scaledH = maxOf(targetHeightPx, Math.round(decoded.height * scale))
+                        val scaled = android.graphics.Bitmap.createScaledBitmap(decoded, scaledW, scaledH, true)
+                        val cropX = maxOf(0, (scaledW - targetWidthPx) / 2)
+                        val cropY = maxOf(0, (scaledH - targetHeightPx) / 2)
+                        val cropped = android.graphics.Bitmap.createBitmap(
+                            scaled,
+                            cropX,
+                            cropY,
+                            targetWidthPx,
+                            targetHeightPx
+                        )
                         FileOutputStream(destFile).use { output ->
-                            input.copyTo(output)
+                            cropped.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, output)
+                        }
+                    } else if (rawBytes != null) {
+                        FileOutputStream(destFile).use { output ->
+                            output.write(rawBytes)
                         }
                     }
                     destFile.absolutePath

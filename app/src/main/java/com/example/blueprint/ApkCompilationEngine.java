@@ -171,7 +171,7 @@ public final class ApkCompilationEngine {
             File unsignedMergedApk = new File(workDir, "unsigned_merged.apk");
             File signedTempApk = new File(workDir, "signed_output.apk");
             try {
-                ApkCompilationEngine.buildAlignedUnsignedApkFromBase(baseApkFile, unsignedMergedApk, blueprintFiles, components, compiledPackageName, compiledAppName, customAppLogoPath, customFloatingLogoPath, customCanvasBgImagePath);
+                ApkCompilationEngine.buildAlignedUnsignedApkFromBase(baseApkFile, unsignedMergedApk, blueprintFiles, components, compiledPackageName, compiledAppName, customAppLogoPath, customFloatingLogoPath, customCanvasBgImagePath, project.getCanvasWidthDp(), project.getCanvasHeightDp());
                 boolean signedOk = ApkCompilationEngine.signApkWithDebugKey(context, unsignedMergedApk, signedTempApk);
                 if (signedOk && signedTempApk.exists() && signedTempApk.length() > 100000L) {
                     ApkCompilationEngine.copyFile(signedTempApk, outputApkFile);
@@ -198,7 +198,7 @@ public final class ApkCompilationEngine {
         return new CompilationResult(outputApkFile, blueprintZipFile, serviceJavaPreview, blueprintFiles, outputApkFile.length(), compiledPackageName, compiledAppName.trim());
     }
 
-    private static void buildAlignedUnsignedApkFromBase(@NonNull File baseApkFile, @NonNull File outUnsignedApk, @NonNull Map<String, String> blueprintFiles, @NonNull List<CanvasComponentEntity> components, @NonNull String compiledPackageName, @NonNull String compiledAppName, @NonNull String customAppLogoPath, @NonNull String customFloatingLogoPath, @NonNull String customCanvasBgImagePath) throws IOException {
+    private static void buildAlignedUnsignedApkFromBase(@NonNull File baseApkFile, @NonNull File outUnsignedApk, @NonNull Map<String, String> blueprintFiles, @NonNull List<CanvasComponentEntity> components, @NonNull String compiledPackageName, @NonNull String compiledAppName, @NonNull String customAppLogoPath, @NonNull String customFloatingLogoPath, @NonNull String customCanvasBgImagePath, int canvasWidthDp, int canvasHeightDp) throws IOException {
         byte[] replacementIconPng = ApkCompilationEngine.buildLauncherIconPngBytes(customAppLogoPath);
         HashSet<String> writtenEntries = new HashSet<String>();
         try (ZipFile baseZip = new ZipFile(baseApkFile);
@@ -258,7 +258,7 @@ public final class ApkCompilationEngine {
                 ApkCompilationEngine.injectCustomFileIfPresent(zos, customFloatingLogoPath, "assets/floating_logo.png");
             }
             if (!customCanvasBgImagePath.isEmpty() && writtenEntries.add("assets/canvas_bg.png")) {
-                ApkCompilationEngine.injectCustomFileIfPresent(zos, customCanvasBgImagePath, "assets/canvas_bg.png");
+                ApkCompilationEngine.injectCroppedCanvasBgIfPresent(zos, customCanvasBgImagePath, "assets/canvas_bg.png", canvasWidthDp, canvasHeightDp);
             }
             for (Map.Entry<String, String> fileEntry : blueprintFiles.entrySet()) {
                 String relPath = fileEntry.getKey();
@@ -552,6 +552,44 @@ public final class ApkCompilationEngine {
         zos.putNextEntry(entry);
         zos.write(content.getBytes(StandardCharsets.UTF_8));
         zos.closeEntry();
+    }
+
+    private static void injectCroppedCanvasBgIfPresent(@NonNull ZipOutputStream zos, String filePath, @NonNull String entryName, int canvasWidthDp, int canvasHeightDp) throws IOException {
+        if (filePath == null || filePath.trim().isEmpty()) {
+            return;
+        }
+        File f = new File(filePath.trim());
+        if (!f.exists() || !f.isFile()) {
+            return;
+        }
+        try {
+            Bitmap decoded = BitmapFactory.decodeFile((String)f.getAbsolutePath());
+            if (decoded != null && decoded.getWidth() > 0 && decoded.getHeight() > 0) {
+                int clampedW = Math.max(180, Math.min(340, canvasWidthDp));
+                int clampedH = Math.max(160, Math.min(480, canvasHeightDp));
+                int targetW = clampedW * 3;
+                int targetH = clampedH * 3;
+                float scale = Math.max((float)targetW / (float)decoded.getWidth(), (float)targetH / (float)decoded.getHeight());
+                int scaledW = Math.max(targetW, Math.round((float)decoded.getWidth() * scale));
+                int scaledH = Math.max(targetH, Math.round((float)decoded.getHeight() * scale));
+                Bitmap scaled = Bitmap.createScaledBitmap((Bitmap)decoded, (int)scaledW, (int)scaledH, (boolean)true);
+                int cropX = Math.max(0, (scaledW - targetW) / 2);
+                int cropY = Math.max(0, (scaledH - targetH) / 2);
+                Bitmap cropped = Bitmap.createBitmap((Bitmap)scaled, (int)cropX, (int)cropY, (int)targetW, (int)targetH);
+                ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                cropped.compress(Bitmap.CompressFormat.PNG, 100, (OutputStream)baos);
+                byte[] pngBytes = baos.toByteArray();
+                ZipEntry entry = new ZipEntry(entryName);
+                entry.setMethod(8);
+                zos.putNextEntry(entry);
+                zos.write(pngBytes);
+                zos.closeEntry();
+                return;
+            }
+        }
+        catch (Throwable ignored) {
+        }
+        ApkCompilationEngine.injectCustomFileIfPresent(zos, filePath, entryName);
     }
 
     private static void injectCustomFileIfPresent(@NonNull ZipOutputStream zos, String filePath, @NonNull String entryName) throws IOException {
