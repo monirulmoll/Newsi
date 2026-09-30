@@ -41,6 +41,8 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -65,8 +67,10 @@ import com.example.data.CanvasComponentEntity
 import java.io.File
 import java.io.FileOutputStream
 import java.util.Locale
+import kotlin.math.roundToInt
 
 private val DefaultWidgetBgPresets = listOf(
+    "#00000000" to "Transparent",
     "#334155" to "Slate",
     "#1E293B" to "Dark Navy",
     "#0F172A" to "Midnight",
@@ -83,6 +87,46 @@ private val DefaultWidgetBgPresets = listOf(
     "#800F172A" to "Glass Dark",
     "#80FFFFFF" to "Glass Light"
 )
+
+private val QuickOpacityPresets = listOf(
+    0 to "Transparent (0%)",
+    25 to "25% Glass",
+    50 to "50% Half",
+    75 to "75% Soft",
+    100 to "100% Solid"
+)
+
+private fun extractBaseRgb6(hex: String): String {
+    val clean = hex.trim().removePrefix("#").uppercase(Locale.US)
+    return when (clean.length) {
+        8 -> {
+            val rgb = clean.substring(2)
+            if (clean == "00000000") "334155" else rgb
+        }
+        6 -> clean
+        else -> "334155"
+    }
+}
+
+private fun extractAlphaPercent(hex: String): Int {
+    val clean = hex.trim().removePrefix("#")
+    return if (clean.length == 8) {
+        val alphaByte = clean.substring(0, 2).toIntOrNull(16) ?: 255
+        ((alphaByte / 255f) * 100f).roundToInt().coerceIn(0, 100)
+    } else {
+        100
+    }
+}
+
+private fun buildHexWithAlphaPercent(baseRgb6: String, alphaPercent: Int): String {
+    val safeRgb = if (baseRgb6.length == 6) baseRgb6.uppercase(Locale.US) else "334155"
+    val pct = alphaPercent.coerceIn(0, 100)
+    if (pct >= 100) {
+        return "#$safeRgb"
+    }
+    val alphaByte = ((pct / 100f) * 255f).roundToInt().coerceIn(0, 255)
+    return String.format(Locale.US, "#%02X%s", alphaByte, safeRgb)
+}
 
 private val DefaultWidgetTextPresets = listOf(
     "#FFFFFF" to "White",
@@ -256,7 +300,29 @@ fun ComponentPropertyInspectorSheet(
         }
     }
 
+    val currentOpacityPercent = remember(bgHex) { extractAlphaPercent(bgHex) }
+
+    fun applyWidgetBgOpacityPercent(newOpacityPct: Int) {
+        val baseRgb = extractBaseRgb6(bgHex)
+        val updatedHex = buildHexWithAlphaPercent(baseRgb, newOpacityPct)
+        bgHex = updatedHex
+        onSaveComponent(buildUpdated(overrideBgHex = updatedHex))
+    }
+
     fun applyDefaultWidgetBgPreset(presetHex: String) {
+        if (presetHex.equals("#00000000", ignoreCase = true)) {
+            val baseRgb = extractBaseRgb6(bgHex)
+            val transparentHex = buildHexWithAlphaPercent(baseRgb, 0)
+            bgHex = transparentHex
+            onSaveComponent(buildUpdated(overrideBgHex = transparentHex))
+            return
+        }
+        val cleanPreset = presetHex.trim().removePrefix("#")
+        val resolvedHex = if (cleanPreset.length == 6 && currentOpacityPercent in 1..99) {
+            buildHexWithAlphaPercent(cleanPreset, currentOpacityPercent)
+        } else {
+            presetHex
+        }
         val isLightBg = presetHex.equals("#FFFFFF", ignoreCase = true) ||
             presetHex.equals("#80FFFFFF", ignoreCase = true) ||
             presetHex.equals("#FACC15", ignoreCase = true)
@@ -265,9 +331,9 @@ fun ComponentPropertyInspectorSheet(
             !isLightBg && textHex.equals("#0F172A", ignoreCase = true) -> "#FFFFFF"
             else -> textHex
         }
-        bgHex = presetHex
+        bgHex = resolvedHex
         textHex = autoTextHex
-        onSaveComponent(buildUpdated(overrideBgHex = presetHex, overrideTextHex = autoTextHex))
+        onSaveComponent(buildUpdated(overrideBgHex = resolvedHex, overrideTextHex = autoTextHex))
     }
 
     val widgetBgPreviewBitmap = remember(bgImagePath) {
@@ -683,7 +749,7 @@ fun ComponentPropertyInspectorSheet(
                             }
                         }
 
-                        // 5. Widget Background Default Colors Strip
+                        // 5. Widget Background Default Colors + Transparency Strip
                         Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
@@ -691,15 +757,15 @@ fun ComponentPropertyInspectorSheet(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
-                                    text = "Widget Background (Default Colors)",
+                                    text = "Widget Background (Colors & Transparent)",
                                     color = Color(0xFFCBD5E1),
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold
                                 )
                                 Text(
-                                    text = "Style Tab →",
+                                    text = "Opacity: $currentOpacityPercent% • Style Tab →",
                                     color = Color(0xFF38BDF8),
-                                    fontSize = 11.sp,
+                                    fontSize = 10.sp,
                                     fontWeight = FontWeight.Bold,
                                     modifier = Modifier.clickable { activeTab = "Style" }
                                 )
@@ -712,7 +778,14 @@ fun ComponentPropertyInspectorSheet(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 DefaultWidgetBgPresets.forEach { (presetHex, presetName) ->
-                                    val isSelectedBg = bgHex.equals(presetHex, ignoreCase = true)
+                                    val isTransparentChip = presetHex.equals("#00000000", ignoreCase = true)
+                                    val isSelectedBg = if (isTransparentChip) {
+                                        currentOpacityPercent == 0
+                                    } else {
+                                        bgHex.equals(presetHex, ignoreCase = true) ||
+                                            (currentOpacityPercent > 0 && presetHex.length == 7 &&
+                                                extractBaseRgb6(bgHex).equals(presetHex.removePrefix("#"), ignoreCase = true))
+                                    }
                                     val swatchColor = parseHexColorSafe(presetHex, Color(0xFF334155))
                                     val slug = presetHex.removePrefix("#").lowercase(Locale.US)
                                     Surface(
@@ -746,6 +819,39 @@ fun ComponentPropertyInspectorSheet(
                                                 maxLines = 1
                                             )
                                         }
+                                    }
+                                }
+                            }
+
+                            // Quick Transparency / Opacity Selector for Selected Color right in General tab
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                QuickOpacityPresets.forEach { (pct, labelText) ->
+                                    val isSelectedOpacity = currentOpacityPercent == pct
+                                    Surface(
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = if (isSelectedOpacity) Color(0xFF1E293B) else InspectorFieldBg,
+                                        border = BorderStroke(
+                                            width = if (isSelectedOpacity) 1.5.dp else 1.dp,
+                                            color = if (isSelectedOpacity) Color(0xFF38BDF8) else InspectorFieldBorder
+                                        ),
+                                        modifier = Modifier
+                                            .clickable { applyWidgetBgOpacityPercent(pct) }
+                                            .testTag("general_widget_opacity_$pct")
+                                    ) {
+                                        Text(
+                                            text = labelText,
+                                            color = if (isSelectedOpacity) Color(0xFF38BDF8) else Color(0xFFE2E8F0),
+                                            fontSize = 10.sp,
+                                            fontWeight = if (isSelectedOpacity) FontWeight.ExtraBold else FontWeight.Medium,
+                                            maxLines = 1,
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp)
+                                        )
                                     }
                                 }
                             }
@@ -873,7 +979,7 @@ fun ComponentPropertyInspectorSheet(
                             }
                         }
 
-                        // 2. Comfortable Horizontal Strip for Widget Background — Default Colors
+                        // 2. Comfortable Horizontal Strip for Widget Background — Default Colors & Transparent
                         Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
@@ -891,14 +997,14 @@ fun ComponentPropertyInspectorSheet(
                                         modifier = Modifier.size(14.dp)
                                     )
                                     Text(
-                                        text = "Widget Background — Default Colors",
+                                        text = "Widget Background — Colors & Transparent",
                                         color = Color(0xFFCBD5E1),
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.Bold
                                     )
                                 }
                                 Text(
-                                    text = bgHex,
+                                    text = "$bgHex ($currentOpacityPercent%)",
                                     color = Color(0xFF38BDF8),
                                     fontSize = 10.sp,
                                     fontWeight = FontWeight.Bold
@@ -913,7 +1019,14 @@ fun ComponentPropertyInspectorSheet(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 DefaultWidgetBgPresets.forEach { (presetHex, presetName) ->
-                                    val isSelectedBg = bgHex.equals(presetHex, ignoreCase = true)
+                                    val isTransparentChip = presetHex.equals("#00000000", ignoreCase = true)
+                                    val isSelectedBg = if (isTransparentChip) {
+                                        currentOpacityPercent == 0
+                                    } else {
+                                        bgHex.equals(presetHex, ignoreCase = true) ||
+                                            (currentOpacityPercent > 0 && presetHex.length == 7 &&
+                                                extractBaseRgb6(bgHex).equals(presetHex.removePrefix("#"), ignoreCase = true))
+                                    }
                                     val swatchColor = parseHexColorSafe(presetHex, Color(0xFF334155))
                                     val slug = presetHex.removePrefix("#").lowercase(Locale.US)
                                     Surface(
@@ -950,6 +1063,77 @@ fun ComponentPropertyInspectorSheet(
                                     }
                                 }
                             }
+                        }
+
+                        // 2B. Background Transparency / Opacity Slider & Presets (Make any selected color transparent!)
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "Background Transparency / Opacity",
+                                    color = Color(0xFFCBD5E1),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = if (currentOpacityPercent == 0) "100% Transparent" else "$currentOpacityPercent% Opacity",
+                                    color = Color(0xFF38BDF8),
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                QuickOpacityPresets.forEach { (pct, labelText) ->
+                                    val isSelectedOpacity = currentOpacityPercent == pct
+                                    Surface(
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = if (isSelectedOpacity) Color(0xFF1E293B) else InspectorFieldBg,
+                                        border = BorderStroke(
+                                            width = if (isSelectedOpacity) 1.5.dp else 1.dp,
+                                            color = if (isSelectedOpacity) Color(0xFF38BDF8) else InspectorFieldBorder
+                                        ),
+                                        modifier = Modifier
+                                            .clickable { applyWidgetBgOpacityPercent(pct) }
+                                            .testTag("style_widget_opacity_$pct")
+                                    ) {
+                                        Text(
+                                            text = labelText,
+                                            color = if (isSelectedOpacity) Color(0xFF38BDF8) else Color(0xFFE2E8F0),
+                                            fontSize = 10.sp,
+                                            fontWeight = if (isSelectedOpacity) FontWeight.ExtraBold else FontWeight.Medium,
+                                            maxLines = 1,
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp)
+                                        )
+                                    }
+                                }
+                            }
+
+                            Slider(
+                                value = currentOpacityPercent.toFloat(),
+                                onValueChange = { newVal ->
+                                    applyWidgetBgOpacityPercent(newVal.roundToInt())
+                                },
+                                valueRange = 0f..100f,
+                                colors = SliderDefaults.colors(
+                                    thumbColor = Color(0xFF38BDF8),
+                                    activeTrackColor = InspectorPurpleButton,
+                                    inactiveTrackColor = InspectorFieldBorder
+                                ),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(28.dp)
+                                    .testTag("widget_bg_opacity_slider")
+                            )
                         }
 
                         // 3. Widget Text — Default Colors Strip
