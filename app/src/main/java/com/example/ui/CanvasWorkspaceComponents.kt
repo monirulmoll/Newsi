@@ -114,39 +114,63 @@ fun ComponentTrackerBanner(
     onSelectComponentForEdit: (Long?) -> Unit,
     onOpenEditFloatingPanel: (() -> Unit)? = null
 ) {
-    // Only show widget chips when components exist, with no extra clutter banner when empty
     if (components.isEmpty()) return
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Color(0xFF10182E))
-            .border(BorderStroke(0.5.dp, Color(0xFF233052)))
+            .background(Color(0xFF0E1629))
+            .border(BorderStroke(0.5.dp, Color(0xFF1E293B)))
             .horizontalScroll(rememberScrollState())
             .padding(horizontal = 10.dp, vertical = 6.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        Surface(
+            shape = RoundedCornerShape(6.dp),
+            color = Color(0xFF17223B),
+            border = BorderStroke(1.dp, Color(0xFF283556))
+        ) {
+            Text(
+                text = "${summary.totalCount} Widgets",
+                color = Color(0xFF38BDF8),
+                fontSize = 10.sp,
+                fontWeight = FontWeight.ExtraBold,
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+            )
+        }
+
         components.forEach { comp ->
             val isSelected = comp.id == selectedComponentId
             Surface(
                 shape = RoundedCornerShape(8.dp),
-                color = if (isSelected) Color(0xFF5B46F6) else Color(0xFF1A243D),
+                color = if (isSelected) Color(0xFF5B46F6) else Color(0xFF151E34),
                 border = BorderStroke(
                     1.dp,
-                    if (isSelected) Color(0xFF818CF8) else Color(0xFF2E3C5E)
+                    if (isSelected) Color(0xFF818CF8) else Color(0xFF283556)
                 ),
                 modifier = Modifier
                     .clickable { onSelectComponentForEdit(comp.id) }
                     .testTag("tracker_chip_${comp.id}")
             ) {
-                Text(
-                    text = comp.label,
-                    color = Color.White,
-                    fontSize = 11.sp,
-                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
-                )
+                Row(
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(5.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(6.dp)
+                            .clip(CircleShape)
+                            .background(if (isSelected) Color.White else Color(0xFF38BDF8))
+                    )
+                    Text(
+                        text = comp.label,
+                        color = Color.White,
+                        fontSize = 11.sp,
+                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                    )
+                }
             }
         }
     }
@@ -172,7 +196,7 @@ fun SketchwareStudioSplitWorkspace(
     modifier: Modifier = Modifier
 ) {
     Row(modifier = modifier.fillMaxSize()) {
-        // LEFT SIDE WIDGET PALETTE (Dark Floating Panel Studio style)
+        // LEFT SIDE WIDGET PALETTE (Updated Dark Studio Dock)
         LeftSideWidgetPalette(
             isAutoFixSize = project.autoFixSize,
             onSelectPaletteEntry = onAddPaletteEntry,
@@ -211,25 +235,25 @@ private fun LeftSideWidgetPalette(
     val layoutItems = remember {
         listOf(
             LeftPaletteItemSpec(
-                entry = SketchwarePaletteEntry("Linear (H)", ComponentWidgetType.BUTTON, 196, 38, "#E2E8F0", "#0F172A"),
+                entry = SketchwarePaletteEntry("Linear (H)", ComponentWidgetType.BUTTON, 196, 38, "#1E293B", "#F8FAFC"),
                 icon = Icons.Default.HorizontalDistribute,
                 iconTint = Color(0xFF38BDF8),
                 tagSlug = "linear_h"
             ),
             LeftPaletteItemSpec(
-                entry = SketchwarePaletteEntry("Linear (V)", ComponentWidgetType.BUTTON, 196, 56, "#E2E8F0", "#0F172A"),
+                entry = SketchwarePaletteEntry("Linear (V)", ComponentWidgetType.BUTTON, 196, 56, "#1E293B", "#F8FAFC"),
                 icon = Icons.Default.VerticalDistribute,
                 iconTint = Color(0xFF38BDF8),
                 tagSlug = "linear_v"
             ),
             LeftPaletteItemSpec(
-                entry = SketchwarePaletteEntry("Scroll (H)", ComponentWidgetType.BUTTON, 196, 42, "#F1F5F9", "#0F172A"),
+                entry = SketchwarePaletteEntry("Scroll (H)", ComponentWidgetType.BUTTON, 196, 42, "#1E293B", "#F8FAFC"),
                 icon = Icons.Default.SwapHoriz,
                 iconTint = Color(0xFF38BDF8),
                 tagSlug = "scroll_h"
             ),
             LeftPaletteItemSpec(
-                entry = SketchwarePaletteEntry("Scroll (V)", ComponentWidgetType.BUTTON, 196, 64, "#F1F5F9", "#0F172A"),
+                entry = SketchwarePaletteEntry("Scroll (V)", ComponentWidgetType.BUTTON, 196, 64, "#1E293B", "#F8FAFC"),
                 icon = Icons.Default.SwapVert,
                 iconTint = Color(0xFF38BDF8),
                 tagSlug = "scroll_v"
@@ -320,10 +344,10 @@ private fun LeftSideWidgetPalette(
     }
 
     Surface(
-        color = Color(0xFF0E1528),
-        border = BorderStroke(1.dp, Color(0xFF233052)),
+        color = Color(0xFF0E1526),
+        border = BorderStroke(1.dp, Color(0xFF1E293B)),
         modifier = Modifier
-            .width(122.dp)
+            .width(128.dp)
             .fillMaxHeight()
             .testTag("left_widget_palette_sidebar")
     ) {
@@ -334,9 +358,10 @@ private fun LeftSideWidgetPalette(
                     .weight(1f)
                     .fillMaxWidth()
                     .verticalScroll(rememberScrollState())
-                    .padding(vertical = 4.dp)
+                    .padding(horizontal = 6.dp, vertical = 6.dp),
+                verticalArrangement = Arrangement.spacedBy(3.dp)
             ) {
-                PaletteCategoryHeader("Layouts")
+                PaletteCategoryHeader("Layouts", Color(0xFF38BDF8))
                 layoutItems.forEach { item ->
                     LeftPaletteItemRow(
                         item = item,
@@ -349,7 +374,7 @@ private fun LeftSideWidgetPalette(
                     modifier = Modifier.padding(vertical = 4.dp)
                 )
 
-                PaletteCategoryHeader("AndroidX")
+                PaletteCategoryHeader("AndroidX", Color(0xFFA78BFA))
                 androidxItems.forEach { item ->
                     LeftPaletteItemRow(
                         item = item,
@@ -362,7 +387,7 @@ private fun LeftSideWidgetPalette(
                     modifier = Modifier.padding(vertical = 4.dp)
                 )
 
-                PaletteCategoryHeader("Widgets")
+                PaletteCategoryHeader("Widgets", Color(0xFFFB923C))
                 widgetItems.forEach { item ->
                     LeftPaletteItemRow(
                         item = item,
@@ -376,18 +401,19 @@ private fun LeftSideWidgetPalette(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(Color(0xFF090D18))
+                    .border(BorderStroke(0.5.dp, Color(0xFF1E293B)))
                     .padding(6.dp)
             ) {
                 Button(
                     onClick = onToggleAutoFixSize,
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = if (isAutoFixSize) Color(0xFF10B981) else Color(0xFF334155)
+                        containerColor = if (isAutoFixSize) Color(0xFF10B981) else Color(0xFF283556)
                     ),
-                    shape = RoundedCornerShape(8.dp),
+                    shape = RoundedCornerShape(10.dp),
                     contentPadding = PaddingValues(horizontal = 6.dp, vertical = 6.dp),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(36.dp)
+                        .height(38.dp)
                         .testTag("left_palette_auto_size_button")
                 ) {
                     Icon(
@@ -398,10 +424,10 @@ private fun LeftSideWidgetPalette(
                     )
                     Spacer(Modifier.width(4.dp))
                     Text(
-                        text = "Auto Size",
+                        text = if (isAutoFixSize) "Auto Size: ON" else "Auto Size: OFF",
                         color = Color.White,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.ExtraBold,
                         maxLines = 1
                     )
                 }
@@ -411,14 +437,28 @@ private fun LeftSideWidgetPalette(
 }
 
 @Composable
-private fun PaletteCategoryHeader(title: String) {
-    Text(
-        text = title,
-        color = Color(0xFF38BDF8),
-        fontSize = 11.sp,
-        fontWeight = FontWeight.ExtraBold,
-        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-    )
+private fun PaletteCategoryHeader(title: String, tint: Color) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 4.dp, vertical = 3.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(5.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(5.dp)
+                .clip(CircleShape)
+                .background(tint)
+        )
+        Text(
+            text = title.uppercase(),
+            color = tint,
+            fontSize = 10.sp,
+            fontWeight = FontWeight.ExtraBold,
+            letterSpacing = 0.6.sp
+        )
+    }
 }
 
 @Composable
@@ -426,29 +466,45 @@ private fun LeftPaletteItemRow(
     item: LeftPaletteItemSpec,
     onClick: () -> Unit
 ) {
-    Row(
+    Surface(
+        shape = RoundedCornerShape(8.dp),
+        color = Color(0xFF151F36),
+        border = BorderStroke(1.dp, Color(0xFF23304E)),
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(horizontal = 8.dp, vertical = 6.dp)
-            .testTag("add_widget_${item.tagSlug}"),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp)
+            .testTag("add_widget_${item.tagSlug}")
     ) {
-        Icon(
-            imageVector = item.icon,
-            contentDescription = item.entry.title,
-            tint = item.iconTint,
-            modifier = Modifier.size(16.dp)
-        )
-        Text(
-            text = item.entry.title,
-            color = Color(0xFFE2E8F0),
-            fontSize = 11.sp,
-            fontWeight = FontWeight.SemiBold,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 7.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(20.dp)
+                    .clip(RoundedCornerShape(5.dp))
+                    .background(item.iconTint.copy(alpha = 0.16f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = item.icon,
+                    contentDescription = item.entry.title,
+                    tint = item.iconTint,
+                    modifier = Modifier.size(13.dp)
+                )
+            }
+            Text(
+                text = item.entry.title,
+                color = Color(0xFFE2E8F0),
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
     }
 }
 
@@ -520,40 +576,67 @@ fun InteractiveOverlayCanvas(
         project.name.trim().ifEmpty { "Floating Panel" }
     }
 
+    var dragCanvasWidthDp by remember(project.id, project.canvasWidthDp) {
+        mutableFloatStateOf(project.canvasWidthDp.toFloat().coerceIn(180f, 340f))
+    }
+    var dragCanvasHeightDp by remember(project.id, project.canvasHeightDp) {
+        mutableFloatStateOf(project.canvasHeightDp.toFloat().coerceIn(180f, 480f))
+    }
+
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(Color(0xFF090D18))
+            .background(Color(0xFF070B14))
             .clickable { onSelectComponent(null) }
-            .padding(10.dp),
+            .padding(8.dp),
         contentAlignment = Alignment.Center
     ) {
-        // Outer Android Phone Frame
+        // Outer Android Phone Device Frame
         Card(
             shape = RoundedCornerShape(26.dp),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF11192E)),
-            border = BorderStroke(2.5.dp, Color(0xFF283556)),
-            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF0E1528)),
+            border = BorderStroke(2.dp, Color(0xFF233152)),
+            elevation = CardDefaults.cardElevation(defaultElevation = 10.dp),
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 4.dp, vertical = 2.dp)
+                .padding(horizontal = 2.dp, vertical = 2.dp)
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
-                // Clean Phone Status Bar ("9:41" ... "main.xml")
+                // Phone Status Bar ("9:41" ... size badge ... "main.xml")
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(Color(0xFF0A0F1F))
+                        .background(Color(0xFF0A0F1E))
                         .padding(horizontal = 14.dp, vertical = 7.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(6.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFF10B981))
+                        )
+                        Text(
+                            text = "9:41",
+                            color = Color.White,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+
                     Text(
-                        text = "9:41",
-                        color = Color.White,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold
+                        text = "${dragCanvasWidthDp.roundToInt()}×${dragCanvasHeightDp.roundToInt()} dp",
+                        color = Color(0xFF60A5FA),
+                        fontSize = 10.sp,
+                        fontFamily = FontFamily.Monospace,
+                        fontWeight = FontWeight.SemiBold
                     )
+
                     Text(
                         text = "main.xml",
                         color = Color(0xFF94A3B8),
@@ -562,244 +645,330 @@ fun InteractiveOverlayCanvas(
                     )
                 }
 
-                // Phone Screen Workspace Area
+                // Simulated Phone Screen Workspace Area
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .background(Color(0xFFEFF3F8))
+                        .background(
+                            Brush.verticalGradient(
+                                colors = listOf(Color(0xFF131D36), Color(0xFF0D1426))
+                            )
+                        )
                         .padding(8.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     if (isCollapsedToGoalBubble) {
                         // Minimized Goal Bubble Preview (with Logo or Panel Name)
-                        Box(
-                            modifier = Modifier
-                                .size(68.dp)
-                                .clip(CircleShape)
-                                .background(Color(0xFF2563EB))
-                                .border(BorderStroke(2.dp, Color.White), CircleShape)
-                                .clickable { isCollapsedToGoalBubble = false }
-                                .testTag("canvas_minimized_goal_bubble"),
-                            contentAlignment = Alignment.Center
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            if (floatingLogoBitmap != null) {
-                                Image(
-                                    bitmap = floatingLogoBitmap,
-                                    contentDescription = "Floating Goal Bubble Logo",
-                                    contentScale = ContentScale.Crop,
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .clip(CircleShape)
-                                )
-                            } else {
-                                Text(
-                                    text = resolvedPanelTitle,
-                                    color = Color.White,
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    textAlign = TextAlign.Center,
-                                    maxLines = 2,
-                                    overflow = TextOverflow.Ellipsis,
-                                    modifier = Modifier.padding(4.dp)
-                                )
+                            Box(
+                                modifier = Modifier
+                                    .size(70.dp)
+                                    .clip(CircleShape)
+                                    .background(
+                                        Brush.linearGradient(
+                                            colors = listOf(Color(0xFF4F46E5), Color(0xFF2563EB))
+                                        )
+                                    )
+                                    .border(BorderStroke(2.5.dp, Color.White), CircleShape)
+                                    .clickable { isCollapsedToGoalBubble = false }
+                                    .testTag("canvas_minimized_goal_bubble"),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                if (floatingLogoBitmap != null) {
+                                    Image(
+                                        bitmap = floatingLogoBitmap,
+                                        contentDescription = "Floating Goal Bubble Logo",
+                                        contentScale = ContentScale.Crop,
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .clip(CircleShape)
+                                    )
+                                } else {
+                                    Text(
+                                        text = resolvedPanelTitle,
+                                        color = Color.White,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        textAlign = TextAlign.Center,
+                                        maxLines = 2,
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.padding(4.dp)
+                                    )
+                                }
                             }
+                            Text(
+                                text = "Tap bubble to expand Floating Window",
+                                color = Color(0xFF94A3B8),
+                                fontSize = 10.sp
+                            )
                         }
                     } else {
                         // Active Floating Panel Card inside Phone Screen
                         Card(
                             shape = RoundedCornerShape(16.dp),
                             colors = CardDefaults.cardColors(containerColor = canvasBg),
-                            border = BorderStroke(2.dp, Color(0xFF3B82F6)),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
+                            border = BorderStroke(2.dp, Color(0xFF4F46E5)),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 12.dp),
                             modifier = Modifier
                                 .size(
-                                    width = project.canvasWidthDp.dp.coerceIn(180.dp, 340.dp),
-                                    height = project.canvasHeightDp.dp.coerceIn(180.dp, 480.dp)
+                                    width = dragCanvasWidthDp.dp.coerceIn(180.dp, 340.dp),
+                                    height = dragCanvasHeightDp.dp.coerceIn(180.dp, 480.dp)
                                 )
                                 .testTag("overlay_canvas_window")
                         ) {
-                            Column(modifier = Modifier.fillMaxSize()) {
-                                // Floating Window Gradient Blue Header Bar (Clickable to edit Name & Image)
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .background(
-                                            Brush.horizontalGradient(
-                                                colors = listOf(Color(0xFF2563EB), Color(0xFF4F46E5))
-                                            )
-                                        )
-                                        .clickable { onOpenEditFloatingPanel() }
-                                        .padding(horizontal = 10.dp, vertical = 8.dp)
-                                        .testTag("floating_panel_header_bar"),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
+                            Box(modifier = Modifier.fillMaxSize()) {
+                                Column(modifier = Modifier.fillMaxSize()) {
+                                    // Floating Window Gradient Header Bar (Clickable to edit Name & Image)
                                     Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                        modifier = Modifier.weight(1f)
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .background(
+                                                Brush.horizontalGradient(
+                                                    colors = listOf(Color(0xFF4F46E5), Color(0xFF2563EB))
+                                                )
+                                            )
+                                            .clickable { onOpenEditFloatingPanel() }
+                                            .padding(horizontal = 10.dp, vertical = 8.dp)
+                                            .testTag("floating_panel_header_bar"),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        if (floatingLogoBitmap != null) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                            modifier = Modifier.weight(1f)
+                                        ) {
                                             Box(
                                                 modifier = Modifier
                                                     .size(24.dp)
                                                     .clip(CircleShape)
-                                                    .background(Color(0xFF1D4ED8))
+                                                    .background(Color(0xFF1E3A8A))
                                                     .border(BorderStroke(1.dp, Color.White), CircleShape)
                                                     .clickable { onOpenEditFloatingPanel() }
                                                     .testTag("floating_panel_header_logo"),
                                                 contentAlignment = Alignment.Center
                                             ) {
-                                                Image(
-                                                    bitmap = floatingLogoBitmap,
-                                                    contentDescription = "Floating Panel Logo",
-                                                    contentScale = ContentScale.Crop,
-                                                    modifier = Modifier
-                                                        .fillMaxSize()
-                                                        .clip(CircleShape)
+                                                if (floatingLogoBitmap != null) {
+                                                    Image(
+                                                        bitmap = floatingLogoBitmap,
+                                                        contentDescription = "Floating Panel Logo",
+                                                        contentScale = ContentScale.Crop,
+                                                        modifier = Modifier
+                                                            .fillMaxSize()
+                                                            .clip(CircleShape)
+                                                    )
+                                                } else {
+                                                    Icon(
+                                                        imageVector = Icons.Default.Edit,
+                                                        contentDescription = "Customize Panel Header",
+                                                        tint = Color.White,
+                                                        modifier = Modifier.size(12.dp)
+                                                    )
+                                                }
+                                            }
+
+                                            Text(
+                                                text = resolvedPanelTitle,
+                                                color = Color.White,
+                                                fontSize = 13.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                                modifier = Modifier.weight(1f, fill = false)
+                                            )
+                                        }
+
+                                        // Minimize to Goal Bubble button ('✕')
+                                        Text(
+                                            text = "✕",
+                                            color = Color.White,
+                                            fontSize = 14.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            modifier = Modifier
+                                                .clickable { isCollapsedToGoalBubble = true }
+                                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                                                .testTag("floating_panel_collapse_button")
+                                        )
+                                    }
+
+                                    // Widget Canvas Area inside Floating Panel
+                                    Box(modifier = Modifier.fillMaxSize()) {
+                                        if (components.isEmpty()) {
+                                            Column(
+                                                modifier = Modifier
+                                                    .fillMaxSize()
+                                                    .padding(16.dp),
+                                                horizontalAlignment = Alignment.CenterHorizontally,
+                                                verticalArrangement = Arrangement.Center
+                                            ) {
+                                                Text(
+                                                    text = "Empty Floating Panel",
+                                                    color = Color(0xFF475569),
+                                                    fontSize = 12.sp,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                                Spacer(Modifier.height(4.dp))
+                                                Text(
+                                                    text = "Tap any item on the left palette to add widgets",
+                                                    color = Color(0xFF64748B),
+                                                    fontSize = 10.sp,
+                                                    textAlign = TextAlign.Center
                                                 )
                                             }
                                         }
 
-                                        Text(
-                                            text = resolvedPanelTitle,
-                                            color = Color.White,
-                                            fontSize = 13.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis,
-                                            modifier = Modifier.weight(1f, fill = false)
-                                        )
-                                    }
+                                        components.forEach { comp ->
+                                            val isSelected = comp.id == selectedComponentId
+                                            var offsetX by remember(comp.id, comp.posXDp) {
+                                                mutableFloatStateOf(with(density) { comp.posXDp.dp.toPx() })
+                                            }
+                                            var offsetY by remember(comp.id, comp.posYDp) {
+                                                mutableFloatStateOf(with(density) { comp.posYDp.dp.toPx() })
+                                            }
 
-                                    // Minimize to Goal Bubble button ('✕')
-                                    Text(
-                                        text = "✕",
-                                        color = Color.White,
-                                        fontSize = 14.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        modifier = Modifier
-                                            .clickable { isCollapsedToGoalBubble = true }
-                                            .padding(horizontal = 6.dp, vertical = 2.dp)
-                                            .testTag("floating_panel_collapse_button")
-                                    )
-                                }
+                                            val isToggle = comp.type == "TOGGLE"
+                                            val isChecked = comp.currentValue.equals("true", ignoreCase = true) || comp.currentValue == "1"
+                                            val isDefaultWhite = comp.bgColorHex.isBlank() || comp.bgColorHex.equals("#FFFFFF", ignoreCase = true)
+                                            val widgetBg = if (isToggle && isChecked && isDefaultWhite) {
+                                                Color(0xFFECFDF5)
+                                            } else {
+                                                parseHexColorSafe(comp.bgColorHex, Color(0xFF2563EB))
+                                            }
+                                            val widgetText = parseHexColorSafe(comp.textColorHex, Color(0xFF0F172A))
+                                            val borderColor = when {
+                                                isSelected -> Color(0xFF4F46E5)
+                                                isToggle && isChecked -> Color(0xFF10B981)
+                                                isToggle -> Color(0xFF64748B)
+                                                else -> Color(0xFFCBD5E1)
+                                            }
 
-                                // Widget Canvas Area inside Floating Panel
-                                Box(modifier = Modifier.fillMaxSize()) {
-                                    components.forEach { comp ->
-                                        val isSelected = comp.id == selectedComponentId
-                                        var offsetX by remember(comp.id, comp.posXDp) {
-                                            mutableFloatStateOf(with(density) { comp.posXDp.dp.toPx() })
-                                        }
-                                        var offsetY by remember(comp.id, comp.posYDp) {
-                                            mutableFloatStateOf(with(density) { comp.posYDp.dp.toPx() })
-                                        }
-
-                                        val isToggle = comp.type == "TOGGLE"
-                                        val isChecked = comp.currentValue.equals("true", ignoreCase = true) || comp.currentValue == "1"
-                                        val isDefaultWhite = comp.bgColorHex.isBlank() || comp.bgColorHex.equals("#FFFFFF", ignoreCase = true)
-                                        val widgetBg = if (isToggle && isChecked && isDefaultWhite) {
-                                            Color(0xFFECFDF5)
-                                        } else {
-                                            parseHexColorSafe(comp.bgColorHex, Color(0xFF2563EB))
-                                        }
-                                        val widgetText = parseHexColorSafe(comp.textColorHex, Color(0xFF0F172A))
-                                        val borderColor = when {
-                                            isSelected -> Color(0xFF0288D1)
-                                            isToggle && isChecked -> Color(0xFF00C853)
-                                            isToggle -> Color(0xFF64748B)
-                                            else -> Color(0xFFCBD5E1)
-                                        }
-
-                                        Surface(
-                                            shape = RoundedCornerShape(8.dp),
-                                            color = widgetBg,
-                                            modifier = Modifier
-                                                .offset { IntOffset(offsetX.roundToInt(), offsetY.roundToInt()) }
-                                                .size(comp.widthDp.dp, comp.heightDp.dp)
-                                                .border(
-                                                    width = if (isSelected || isToggle) 2.dp else 1.dp,
-                                                    color = borderColor,
-                                                    shape = RoundedCornerShape(8.dp)
-                                                )
-                                                .clickable {
-                                                    onSelectComponent(comp.id)
-                                                    val nextVal = if (isToggle) {
-                                                        if (isChecked) "0" else "1"
-                                                    } else {
-                                                        comp.currentValue
+                                            Surface(
+                                                shape = RoundedCornerShape(8.dp),
+                                                color = widgetBg,
+                                                modifier = Modifier
+                                                    .offset { IntOffset(offsetX.roundToInt(), offsetY.roundToInt()) }
+                                                    .size(comp.widthDp.dp, comp.heightDp.dp)
+                                                    .border(
+                                                        width = if (isSelected || isToggle) 2.dp else 1.dp,
+                                                        color = borderColor,
+                                                        shape = RoundedCornerShape(8.dp)
+                                                    )
+                                                    .clickable {
+                                                        onSelectComponent(comp.id)
+                                                        val nextVal = if (isToggle) {
+                                                            if (isChecked) "0" else "1"
+                                                        } else {
+                                                            comp.currentValue
+                                                        }
+                                                        onTriggerComponent(comp, nextVal)
                                                     }
-                                                    onTriggerComponent(comp, nextVal)
-                                                }
-                                                .pointerInput(comp.id, project.autoFixSize) {
-                                                    if (!project.autoFixSize) {
-                                                        detectDragGestures(
-                                                            onDragStart = { onSelectComponent(comp.id) },
-                                                            onDragEnd = {
-                                                                val newXDp = with(density) { offsetX.toDp().value.roundToInt() }.coerceAtLeast(0)
-                                                                val newYDp = with(density) { offsetY.toDp().value.roundToInt() }.coerceAtLeast(0)
-                                                                onMoveComponent(comp.id, newXDp, newYDp)
-                                                            },
-                                                            onDrag = { change, dragAmount ->
-                                                                change.consume()
-                                                                offsetX = (offsetX + dragAmount.x).coerceAtLeast(0f)
-                                                                offsetY = (offsetY + dragAmount.y).coerceAtLeast(0f)
+                                                    .pointerInput(comp.id, project.autoFixSize) {
+                                                        if (!project.autoFixSize) {
+                                                            detectDragGestures(
+                                                                onDragStart = { onSelectComponent(comp.id) },
+                                                                onDragEnd = {
+                                                                    val newXDp = with(density) { offsetX.toDp().value.roundToInt() }.coerceAtLeast(0)
+                                                                    val newYDp = with(density) { offsetY.toDp().value.roundToInt() }.coerceAtLeast(0)
+                                                                    onMoveComponent(comp.id, newXDp, newYDp)
+                                                                },
+                                                                onDrag = { change, dragAmount ->
+                                                                    change.consume()
+                                                                    offsetX = (offsetX + dragAmount.x).coerceAtLeast(0f)
+                                                                    offsetY = (offsetY + dragAmount.y).coerceAtLeast(0f)
+                                                                }
+                                                            )
+                                                        }
+                                                    }
+                                                    .testTag("canvas_widget_${comp.id}")
+                                            ) {
+                                                Row(
+                                                    modifier = Modifier
+                                                        .fillMaxSize()
+                                                        .padding(horizontal = 8.dp),
+                                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    Column(modifier = Modifier.weight(1f)) {
+                                                        Text(
+                                                            text = comp.label,
+                                                            color = widgetText,
+                                                            fontSize = 11.sp,
+                                                            fontWeight = FontWeight.Bold,
+                                                            maxLines = 1,
+                                                            overflow = TextOverflow.Ellipsis
+                                                        )
+                                                        if (comp.type == "SLIDER") {
+                                                            val sliderVal = (comp.currentValue.toFloatOrNull() ?: 50f)
+                                                                .coerceIn(0f, comp.sliderMax.toFloat().coerceAtLeast(1f))
+                                                            Slider(
+                                                                value = sliderVal,
+                                                                onValueChange = { v ->
+                                                                    onTriggerComponent(comp, v.roundToInt().toString())
+                                                                },
+                                                                valueRange = 0f..comp.sliderMax.toFloat().coerceAtLeast(1f),
+                                                                modifier = Modifier.height(22.dp)
+                                                            )
+                                                        } else if (comp.type == "INPUT" || comp.type == "TEXT") {
+                                                            Text(
+                                                                text = comp.currentValue,
+                                                                color = widgetText.copy(alpha = 0.85f),
+                                                                fontSize = 10.sp,
+                                                                fontFamily = FontFamily.Monospace,
+                                                                maxLines = 1
+                                                            )
+                                                        }
+                                                    }
+                                                    if (isToggle) {
+                                                        Switch(
+                                                            checked = isChecked,
+                                                            onCheckedChange = { checked ->
+                                                                onSelectComponent(comp.id)
+                                                                onTriggerComponent(comp, if (checked) "1" else "0")
                                                             }
                                                         )
                                                     }
                                                 }
-                                                .testTag("canvas_widget_${comp.id}")
-                                        ) {
-                                            Row(
-                                                modifier = Modifier
-                                                    .fillMaxSize()
-                                                    .padding(horizontal = 8.dp),
-                                                horizontalArrangement = Arrangement.SpaceBetween,
-                                                verticalAlignment = Alignment.CenterVertically
-                                            ) {
-                                                Column(modifier = Modifier.weight(1f)) {
-                                                    Text(
-                                                        text = comp.label,
-                                                        color = widgetText,
-                                                        fontSize = 11.sp,
-                                                        fontWeight = FontWeight.Bold,
-                                                        maxLines = 1,
-                                                        overflow = TextOverflow.Ellipsis
-                                                    )
-                                                    if (comp.type == "SLIDER") {
-                                                        val sliderVal = (comp.currentValue.toFloatOrNull() ?: 50f)
-                                                            .coerceIn(0f, comp.sliderMax.toFloat().coerceAtLeast(1f))
-                                                        Slider(
-                                                            value = sliderVal,
-                                                            onValueChange = { v ->
-                                                                onTriggerComponent(comp, v.roundToInt().toString())
-                                                            },
-                                                            valueRange = 0f..comp.sliderMax.toFloat().coerceAtLeast(1f),
-                                                            modifier = Modifier.height(22.dp)
-                                                        )
-                                                    } else if (comp.type == "INPUT" || comp.type == "TEXT") {
-                                                        Text(
-                                                            text = comp.currentValue,
-                                                            color = widgetText.copy(alpha = 0.85f),
-                                                            fontSize = 10.sp,
-                                                            fontFamily = FontFamily.Monospace,
-                                                            maxLines = 1
-                                                        )
-                                                    }
-                                                }
-                                                if (isToggle) {
-                                                    Switch(
-                                                        checked = isChecked,
-                                                        onCheckedChange = { checked ->
-                                                            onSelectComponent(comp.id)
-                                                            onTriggerComponent(comp, if (checked) "1" else "0")
-                                                        }
-                                                    )
-                                                }
                                             }
                                         }
                                     }
+                                }
+
+                                // Corner Resize Handle for Floating Panel Window
+                                Box(
+                                    modifier = Modifier
+                                        .align(Alignment.BottomEnd)
+                                        .size(22.dp)
+                                        .clip(RoundedCornerShape(topStart = 8.dp, bottomEnd = 14.dp))
+                                        .background(Color(0xFF4F46E5).copy(alpha = 0.85f))
+                                        .pointerInput(project.id) {
+                                            detectDragGestures(
+                                                onDragEnd = {
+                                                    onResizeCanvas(
+                                                        dragCanvasWidthDp.roundToInt(),
+                                                        dragCanvasHeightDp.roundToInt()
+                                                    )
+                                                },
+                                                onDrag = { change, dragAmount ->
+                                                    change.consume()
+                                                    val dxDp = with(density) { dragAmount.x.toDp().value }
+                                                    val dyDp = with(density) { dragAmount.y.toDp().value }
+                                                    dragCanvasWidthDp = (dragCanvasWidthDp + dxDp).coerceIn(180f, 340f)
+                                                    dragCanvasHeightDp = (dragCanvasHeightDp + dyDp).coerceIn(180f, 480f)
+                                                }
+                                            )
+                                        }
+                                        .testTag("canvas_resize_handle"),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = "↘",
+                                        color = Color.White,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.ExtraBold
+                                    )
                                 }
                             }
                         }

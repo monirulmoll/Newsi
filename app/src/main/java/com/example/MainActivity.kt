@@ -23,6 +23,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -46,6 +47,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Code
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Image
@@ -79,6 +81,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
@@ -131,7 +134,16 @@ class MainActivity : ComponentActivity() {
                 val bundledStandaloneComponents by viewModel.bundledStandaloneComponents.collectAsStateWithLifecycle()
 
                 when (uiState.destination) {
-                    StudioDestination.WELCOME_SCREEN,
+                    StudioDestination.WELCOME_SCREEN -> {
+                        StudioWelcomeModeScreen(
+                            hasStoragePermission = uiState.hasStoragePermission,
+                            hasOverlayPermission = uiState.hasOverlayPermission,
+                            onRefreshPermissions = viewModel::refreshOverlayPermission,
+                            onSelectOfflineMode = viewModel::openOfflineManualMode,
+                            onSelectOnlineAiMode = viewModel::openOnlineAiMode
+                        )
+                    }
+
                     StudioDestination.PROJECT_LAUNCHER -> {
                         StudioProjectLauncherScreen(
                             uiState = uiState,
@@ -150,7 +162,8 @@ class MainActivity : ComponentActivity() {
                             onSaveProjectConfiguration = viewModel::updateProjectNameAndLogo,
                             onImportLogoUri = viewModel::importProjectLogoUri,
                             onRefreshPermissions = viewModel::refreshOverlayPermission,
-                            onOpenOnlineAiMode = viewModel::openOnlineAiMode
+                            onOpenOnlineAiMode = viewModel::openOnlineAiMode,
+                            onBackToWelcome = viewModel::navigateBackToWelcome
                         )
                     }
 
@@ -803,135 +816,301 @@ fun StudioCanvasBuilderScreen(
         modifier = Modifier
             .fillMaxSize()
             .imePadding(),
-        containerColor = Color(0xFF090D18),
+        containerColor = Color(0xFF060B16),
         topBar = {
-            TopAppBar(
-                navigationIcon = {
-                    IconButton(
-                        onClick = onBackToLauncher,
-                        modifier = Modifier.testTag("back_to_launcher_button")
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back to Project Launcher",
-                            tint = Color.White
-                        )
-                    }
-                },
-                title = {
-                    Row(
-                        modifier = Modifier
-                            .clickable { onOpenEditFloatingPanel() }
-                            .testTag("top_bar_edit_floating_panel_title"),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        // Circular Floating Window Logo in TopAppBar
-                        Box(
-                            modifier = Modifier
-                                .size(30.dp)
-                                .clip(CircleShape)
-                                .background(Color(0xFF2563EB))
-                                .border(BorderStroke(1.5.dp, Color(0xFF38BDF8)), CircleShape),
-                            contentAlignment = Alignment.Center
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color(0xFF0A1224))
+            ) {
+                TopAppBar(
+                    navigationIcon = {
+                        IconButton(
+                            onClick = onBackToLauncher,
+                            modifier = Modifier.testTag("back_to_launcher_button")
                         ) {
-                            if (topBarLogoBitmap != null) {
-                                Image(
-                                    bitmap = topBarLogoBitmap,
-                                    contentDescription = "Floating Window Logo",
-                                    contentScale = ContentScale.Crop,
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .clip(CircleShape)
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Back to Project Launcher",
+                                tint = Color.White
+                            )
+                        }
+                    },
+                    title = {
+                        Row(
+                            modifier = Modifier
+                                .clickable { onOpenEditFloatingPanel() }
+                                .testTag("top_bar_edit_floating_panel_title"),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            // Circular Floating Window Logo in TopAppBar
+                            Box(
+                                modifier = Modifier
+                                    .size(34.dp)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(
+                                        Brush.linearGradient(
+                                            colors = listOf(Color(0xFF7C3AED), Color(0xFF4F46E5))
+                                        )
+                                    )
+                                    .border(BorderStroke(1.5.dp, Color(0xFF818CF8)), RoundedCornerShape(10.dp)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                if (topBarLogoBitmap != null) {
+                                    Image(
+                                        bitmap = topBarLogoBitmap,
+                                        contentDescription = "Floating Window Logo",
+                                        contentScale = ContentScale.Crop,
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .clip(RoundedCornerShape(10.dp))
+                                    )
+                                } else {
+                                    Icon(
+                                        imageVector = Icons.Default.Layers,
+                                        contentDescription = "Edit Floating Window Image",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            }
+
+                            Column(modifier = Modifier.weight(1f, fill = false)) {
+                                Text(
+                                    text = project.overlayTitle.ifBlank { project.name },
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = Color.White,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
                                 )
-                            } else {
-                                Icon(
-                                    imageVector = Icons.Default.Image,
-                                    contentDescription = "Edit Floating Window Image",
-                                    tint = Color.White,
-                                    modifier = Modifier.size(16.dp)
+                                Text(
+                                    text = "App Studio • ${project.canvasWidthDp}×${project.canvasHeightDp} dp • ${components.size} widgets",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = Color(0xFF7B93B8),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
                                 )
                             }
                         }
-
-                        Column(modifier = Modifier.weight(1f, fill = false)) {
+                    },
+                    actions = {
+                        Button(
+                            onClick = onDownloadFloatingWindow,
+                            shape = RoundedCornerShape(10.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFF10B981),
+                                contentColor = Color.White
+                            ),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                            modifier = Modifier
+                                .padding(end = 6.dp)
+                                .testTag("download_floating_window_button")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Build,
+                                contentDescription = "Build APK from Raw Java",
+                                modifier = Modifier.size(15.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
                             Text(
-                                text = project.overlayTitle.ifBlank { project.name },
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = Color.White,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
+                                text = "Build",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+
+                        Button(
+                            onClick = {
+                                if (uiState.isSystemOverlayRunning) onStopSystemOverlay()
+                                else onLaunchSystemOverlay()
+                            },
+                            shape = RoundedCornerShape(10.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (uiState.isSystemOverlayRunning)
+                                    Color(0xFFEF4444)
+                                else Color(0xFF5B4DFF)
+                            ),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                            modifier = Modifier
+                                .padding(end = 10.dp)
+                                .testTag("run_floating_overlay_button")
+                        ) {
+                            Icon(
+                                imageVector = if (uiState.isSystemOverlayRunning) Icons.Default.Stop else Icons.Default.Layers,
+                                contentDescription = "Launch Floating Overlay",
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = if (uiState.isSystemOverlayRunning) "Stop" else "Float",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = Color(0xFF0A1224)
+                    )
+                )
+
+                // Quick Studio Toolbar Action Strip
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color(0xFF080F1E))
+                        .border(BorderStroke(0.5.dp, Color(0xFF1A2B4C)))
+                        .horizontalScroll(rememberScrollState())
+                        .padding(horizontal = 10.dp, vertical = 7.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = Color(0xFF111C35),
+                        border = BorderStroke(1.dp, Color(0xFF233863)),
+                        modifier = Modifier.clickable { onOpenEditFloatingPanel() }
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(5.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Edit,
+                                contentDescription = "Edit Panel",
+                                tint = Color(0xFF38BDF8),
+                                modifier = Modifier.size(14.dp)
                             )
                             Text(
-                                text = "Floating Panel Studio • ${project.canvasWidthDp}×${project.canvasHeightDp} dp",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = Color(0xFF94A3B8),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
+                                text = "Edit Panel",
+                                color = Color.White,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold
                             )
                         }
                     }
-                },
-                actions = {
-                    Button(
-                        onClick = onDownloadFloatingWindow,
-                        shape = RoundedCornerShape(8.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFF10B981),
-                            contentColor = Color.White
-                        ),
-                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
+
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = Color(0xFF111C35),
+                        border = BorderStroke(1.dp, Color(0xFF233863)),
                         modifier = Modifier
-                            .padding(end = 5.dp)
-                            .testTag("download_floating_window_button")
+                            .clickable { onOpenEditCode() }
+                            .testTag("studio_open_code_editor_button")
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Build,
-                            contentDescription = "Build APK from Raw Java",
-                            modifier = Modifier.size(15.dp)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = "Build",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold
-                        )
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(5.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Code,
+                                contentDescription = "Edit Code",
+                                tint = Color(0xFFA78BFA),
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Text(
+                                text = "Code Editor",
+                                color = Color.White,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
                     }
 
-                    Button(
-                        onClick = {
-                            if (uiState.isSystemOverlayRunning) onStopSystemOverlay()
-                            else onLaunchSystemOverlay()
-                        },
-                        shape = RoundedCornerShape(8.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (uiState.isSystemOverlayRunning)
-                                Color(0xFFEF4444)
-                            else Color(0xFF5B46F6)
-                        ),
-                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = Color(0xFF111C35),
+                        border = BorderStroke(1.dp, Color(0xFF233863)),
                         modifier = Modifier
-                            .padding(end = 10.dp)
-                            .testTag("run_floating_overlay_button")
+                            .clickable { onSaveProjectDesign(selectedComponent) }
+                            .testTag("studio_save_design_button")
                     ) {
-                        Icon(
-                            imageVector = if (uiState.isSystemOverlayRunning) Icons.Default.Stop else Icons.Default.Layers,
-                            contentDescription = "Launch Floating Overlay",
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = if (uiState.isSystemOverlayRunning) "Stop" else "Float",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold
-                        )
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(5.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Save,
+                                contentDescription = "Save Design",
+                                tint = Color(0xFF34D399),
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Text(
+                                text = "Save",
+                                color = Color.White,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
                     }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color(0xFF0E1528)
+
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = Color(0xFF111C35),
+                        border = BorderStroke(1.dp, Color(0xFF233863)),
+                        modifier = Modifier.clickable { onRunCompiledAppPreview() }
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(5.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.PlayArrow,
+                                contentDescription = "Preview App",
+                                tint = Color(0xFF60A5FA),
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Text(
+                                text = "Preview",
+                                color = Color.White,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                    }
+
+                    if (components.isNotEmpty()) {
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = Color(0xFF1E1328),
+                            border = BorderStroke(1.dp, Color(0xFF4C1D4B)),
+                            modifier = Modifier.clickable { onClearCanvas() }
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(5.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Delete,
+                                    contentDescription = "Clear Canvas",
+                                    tint = Color(0xFFF87171),
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Text(
+                                    text = "Clear",
+                                    color = Color(0xFFFCA5A5),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                        }
+                    }
+                }
+
+                ComponentTrackerBanner(
+                    summary = trackerSummary,
+                    components = components,
+                    selectedComponentId = uiState.selectedComponentId,
+                    onSelectComponentForEdit = onSelectComponent,
+                    onOpenEditFloatingPanel = onOpenEditFloatingPanel
                 )
-            )
+            }
         },
         bottomBar = {
             AnimatedVisibility(

@@ -1791,6 +1791,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun navigateBackToWelcome() {
+        _uiState.update {
+            it.copy(
+                destination = StudioDestination.WELCOME_SCREEN,
+                statusToast = "Welcome to App Studio"
+            )
+        }
+    }
+
     /**
      * Opens Offline Manual Mode (StudioProjectLauncherScreen).
      */

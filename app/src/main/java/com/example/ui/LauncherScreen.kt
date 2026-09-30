@@ -176,7 +176,8 @@ fun StudioProjectLauncherScreen(
     ) -> Unit,
     onImportLogoUri: (Uri, (String) -> Unit) -> Unit,
     onRefreshPermissions: () -> Unit,
-    onOpenOnlineAiMode: () -> Unit
+    onOpenOnlineAiMode: () -> Unit,
+    onBackToWelcome: () -> Unit = onRefreshPermissions
 ) {
     val editingProject = uiState.editingProject
     if (editingProject != null) {
@@ -232,7 +233,7 @@ fun StudioProjectLauncherScreen(
         onDuplicateProject = onDuplicateProject,
         onDeleteProject = onDeleteProject,
         onOpenAiStudio = onOpenOnlineAiMode,
-        onBackToWelcome = onRefreshPermissions
+        onBackToWelcome = onBackToWelcome
     )
 }
 
@@ -1800,16 +1801,6 @@ private fun CreateNewAppWizardScreenContent(
                     }
                 }
             }
-
-            Spacer(Modifier.height(4.dp))
-
-            // Permission Cards (Overlay Permission, Storage Permission & Grant Permissions button)
-            StudioPermissionsSectionCard(
-                hasOverlayPermission = hasOverlayPermission,
-                hasStoragePermission = hasStoragePermission,
-                onRequestOverlayPermission = onRequestOverlayPermission,
-                onRequestStoragePermission = onRequestStoragePermission
-            )
         }
 
         Spacer(Modifier.height(12.dp))
