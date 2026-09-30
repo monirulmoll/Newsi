@@ -11,6 +11,8 @@ import androidx.room.Query
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.Update
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import kotlinx.coroutines.flow.Flow
 
 enum class ComponentWidgetType(val displayName: String) {
@@ -58,6 +60,7 @@ data class CanvasComponentEntity(
     val heightDp: Int = 36,
     val bgColorHex: String = "#FFFFFF",
     val textColorHex: String = "#0F172A",
+    val bgImagePath: String = "",
     val customImagePath: String = "",
     val soundTrigger: String = "CLICK",
     val customSoundPath: String = "",
@@ -142,7 +145,7 @@ interface ConfigAuditDao {
         CanvasComponentEntity::class,
         ConfigWriteAuditEntity::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -153,13 +156,25 @@ abstract class AppDatabase : RoomDatabase() {
         @Volatile
         private var INSTANCE: AppDatabase? = null
 
+        private val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                try {
+                    db.execSQL("ALTER TABLE canvas_components ADD COLUMN bgImagePath TEXT NOT NULL DEFAULT ''")
+                } catch (_: Throwable) {
+                }
+            }
+        }
+
         fun getInstance(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
                     context.applicationContext,
                     AppDatabase::class.java,
                     "studio_error_workspace.db"
-                ).fallbackToDestructiveMigration(true).build()
+                )
+                    .addMigrations(MIGRATION_2_3)
+                    .fallbackToDestructiveMigration(true)
+                    .build()
                 INSTANCE = instance
                 instance
             }

@@ -231,7 +231,7 @@ public final class ApkCompilationEngine {
                 byte[] entryBytes;
                 ZipEntry entry = entries.nextElement();
                 String name = entry.getName();
-                if (writtenEntries.contains(name) || ApkCompilationEngine.isSignatureFile(name) || "assets/overlay_config.json".equals(name) || "assets/app_logo.png".equals(name) || "assets/floating_logo.png".equals(name) || "assets/canvas_bg.png".equals(name) || name.startsWith("assets/generated_project/") || name.startsWith("assets/images/img_") || name.startsWith("assets/sounds/on_snd_") || name.startsWith("assets/sounds/off_snd_") || name.startsWith("src/")) continue;
+                if (writtenEntries.contains(name) || ApkCompilationEngine.isSignatureFile(name) || "assets/overlay_config.json".equals(name) || "assets/app_logo.png".equals(name) || "assets/floating_logo.png".equals(name) || "assets/canvas_bg.png".equals(name) || name.startsWith("assets/generated_project/") || name.startsWith("assets/images/widget_bg_") || name.startsWith("assets/images/img_") || name.startsWith("assets/sounds/on_snd_") || name.startsWith("assets/sounds/off_snd_") || name.startsWith("src/")) continue;
                 try (InputStream is = baseZip.getInputStream(entry);){
                     entryBytes = ApkCompilationEngine.readAllBytes(is);
                 }
@@ -273,6 +273,10 @@ public final class ApkCompilationEngine {
             for (CanvasComponentEntity comp : components) {
                 String offSndEntry;
                 String onSndEntry;
+                String bgImgEntry = "assets/images/widget_bg_" + comp.getId() + ".png";
+                if (writtenEntries.add(bgImgEntry)) {
+                    ApkCompilationEngine.injectCustomFileIfPresent(zos, comp.getBgImagePath(), bgImgEntry);
+                }
                 String imgEntry = "assets/images/img_" + comp.getId() + ".jpg";
                 if (writtenEntries.add(imgEntry)) {
                     ApkCompilationEngine.injectCustomFileIfPresent(zos, comp.getCustomImagePath(), imgEntry);
@@ -539,6 +543,7 @@ public final class ApkCompilationEngine {
                 ApkCompilationEngine.writeDeflatedUtf8Entry(zos, entry.getKey(), entry.getValue());
             }
             for (CanvasComponentEntity comp : components) {
+                ApkCompilationEngine.injectCustomFileIfPresent(zos, comp.getBgImagePath(), "assets/images/widget_bg_" + comp.getId() + ".png");
                 ApkCompilationEngine.injectCustomFileIfPresent(zos, comp.getCustomImagePath(), "assets/images/img_" + comp.getId() + ".jpg");
                 ApkCompilationEngine.injectCustomFileIfPresent(zos, comp.getCustomSoundPath(), "assets/sounds/on_snd_" + comp.getId() + ".mp3");
                 ApkCompilationEngine.injectCustomFileIfPresent(zos, comp.getOffCustomSoundPath(), "assets/sounds/off_snd_" + comp.getId() + ".mp3");
@@ -1122,10 +1127,11 @@ public final class ApkCompilationEngine {
         sb.append("  \"components\": [\n");
         for (int i = 0; i < components.size(); ++i) {
             CanvasComponentEntity c = components.get(i);
+            boolean hasBgImg = c.getBgImagePath() != null && !c.getBgImagePath().trim().isEmpty() && new File(c.getBgImagePath().trim()).exists();
             boolean hasCustomImg = c.getCustomImagePath() != null && !c.getCustomImagePath().trim().isEmpty() && new File(c.getCustomImagePath().trim()).exists();
             boolean hasOnSnd = c.getCustomSoundPath() != null && !c.getCustomSoundPath().trim().isEmpty() && new File(c.getCustomSoundPath().trim()).exists();
             boolean hasOffSnd = c.getOffCustomSoundPath() != null && !c.getOffCustomSoundPath().trim().isEmpty() && new File(c.getOffCustomSoundPath().trim()).exists();
-            sb.append("    {").append("\"id\": ").append(c.getId()).append(", ").append("\"type\": \"").append(ApkCompilationEngine.escapeJava(c.getType())).append("\", ").append("\"label\": \"").append(ApkCompilationEngine.escapeJava(c.getLabel())).append("\", ").append("\"x\": ").append(c.getPosXDp()).append(", ").append("\"y\": ").append(c.getPosYDp()).append(", ").append("\"width\": ").append(c.getWidthDp()).append(", ").append("\"height\": ").append(c.getHeightDp()).append(", ").append("\"bgHex\": \"").append(ApkCompilationEngine.escapeJava(c.getBgColorHex())).append("\", ").append("\"textHex\": \"").append(ApkCompilationEngine.escapeJava(c.getTextColorHex())).append("\", ").append("\"onSound\": \"").append(ApkCompilationEngine.escapeJava(c.getSoundTrigger())).append("\", ").append("\"offSound\": \"").append(ApkCompilationEngine.escapeJava(c.getOffSoundTrigger())).append("\", ").append("\"customImageAsset\": \"").append(hasCustomImg ? "images/img_" + c.getId() + ".jpg" : "").append("\", ").append("\"onSoundAsset\": \"").append(hasOnSnd ? "sounds/on_snd_" + c.getId() + ".mp3" : "").append("\", ").append("\"offSoundAsset\": \"").append(hasOffSnd ? "sounds/off_snd_" + c.getId() + ".mp3" : "").append("\", ").append("\"targetFile\": \"").append(ApkCompilationEngine.escapeJava(c.getTargetFilePath())).append("\", ").append("\"offsetHex\": \"").append(ApkCompilationEngine.escapeJava(c.getByteOffsetHex())).append("\", ").append("\"onHex\": \"").append(ApkCompilationEngine.escapeJava(c.getOnPayloadHex())).append("\", ").append("\"offHex\": \"").append(ApkCompilationEngine.escapeJava(c.getOffPayloadHex())).append("\", ").append("\"sliderMax\": ").append(c.getSliderMax()).append(", ").append("\"currentValue\": \"").append(ApkCompilationEngine.escapeJava(c.getCurrentValue())).append("\", ").append("\"linkUrl\": \"").append(ApkCompilationEngine.escapeJava(c.getLinkUrl() != null ? c.getLinkUrl() : "")).append("\"").append("}").append(i < components.size() - 1 ? ",\n" : "\n");
+            sb.append("    {").append("\"id\": ").append(c.getId()).append(", ").append("\"type\": \"").append(ApkCompilationEngine.escapeJava(c.getType())).append("\", ").append("\"label\": \"").append(ApkCompilationEngine.escapeJava(c.getLabel())).append("\", ").append("\"x\": ").append(c.getPosXDp()).append(", ").append("\"y\": ").append(c.getPosYDp()).append(", ").append("\"width\": ").append(c.getWidthDp()).append(", ").append("\"height\": ").append(c.getHeightDp()).append(", ").append("\"bgHex\": \"").append(ApkCompilationEngine.escapeJava(c.getBgColorHex())).append("\", ").append("\"textHex\": \"").append(ApkCompilationEngine.escapeJava(c.getTextColorHex())).append("\", ").append("\"bgImageAsset\": \"").append(hasBgImg ? "images/widget_bg_" + c.getId() + ".png" : "").append("\", ").append("\"onSound\": \"").append(ApkCompilationEngine.escapeJava(c.getSoundTrigger())).append("\", ").append("\"offSound\": \"").append(ApkCompilationEngine.escapeJava(c.getOffSoundTrigger())).append("\", ").append("\"customImageAsset\": \"").append(hasCustomImg ? "images/img_" + c.getId() + ".jpg" : "").append("\", ").append("\"onSoundAsset\": \"").append(hasOnSnd ? "sounds/on_snd_" + c.getId() + ".mp3" : "").append("\", ").append("\"offSoundAsset\": \"").append(hasOffSnd ? "sounds/off_snd_" + c.getId() + ".mp3" : "").append("\", ").append("\"targetFile\": \"").append(ApkCompilationEngine.escapeJava(c.getTargetFilePath())).append("\", ").append("\"offsetHex\": \"").append(ApkCompilationEngine.escapeJava(c.getByteOffsetHex())).append("\", ").append("\"onHex\": \"").append(ApkCompilationEngine.escapeJava(c.getOnPayloadHex())).append("\", ").append("\"offHex\": \"").append(ApkCompilationEngine.escapeJava(c.getOffPayloadHex())).append("\", ").append("\"sliderMax\": ").append(c.getSliderMax()).append(", ").append("\"currentValue\": \"").append(ApkCompilationEngine.escapeJava(c.getCurrentValue())).append("\", ").append("\"linkUrl\": \"").append(ApkCompilationEngine.escapeJava(c.getLinkUrl() != null ? c.getLinkUrl() : "")).append("\"").append("}").append(i < components.size() - 1 ? ",\n" : "\n");
         }
         sb.append("  ]\n");
         sb.append("}\n");

@@ -66,6 +66,7 @@ public class DynamicOverlayRegistry {
                     existing.heightDp = incoming.heightDp;
                     existing.bgColorHex = incoming.bgColorHex;
                     existing.textColorHex = incoming.textColorHex;
+                    existing.bgImagePath = incoming.bgImagePath;
                     existing.customImagePath = incoming.customImagePath;
                     existing.soundTrigger = incoming.soundTrigger;
                     existing.customSoundPath = incoming.customSoundPath;
@@ -198,6 +199,7 @@ public class DynamicOverlayRegistry {
                     spec.heightDp = c.optInt("height", 44);
                     spec.bgColorHex = c.optString("bgHex", "#FFFFFF");
                     spec.textColorHex = c.optString("textHex", "#0F172A");
+                    spec.bgImagePath = DynamicOverlayRegistry.extractBundledAssetIfPresent(context, c.optString("bgImageAsset", ""), "widget_bg_" + spec.id + ".png");
                     spec.soundTrigger = c.optString("onSound", "NONE");
                     spec.offSoundTrigger = c.optString("offSound", "NONE");
                     spec.customImagePath = DynamicOverlayRegistry.extractBundledAssetIfPresent(context, c.optString("customImageAsset", ""), "img_" + spec.id + ".jpg");
@@ -254,6 +256,7 @@ public class DynamicOverlayRegistry {
         public int heightDp;
         public String bgColorHex;
         public String textColorHex;
+        public String bgImagePath = "";
         public String customImagePath;
         public String soundTrigger;
         public String customSoundPath;

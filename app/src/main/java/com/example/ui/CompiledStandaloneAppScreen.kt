@@ -498,12 +498,16 @@ fun CompiledStandaloneAppScreen(
 private fun StandaloneDraggableFloatingWindow(
     project: StudioProjectEntity,
     components: List<CanvasComponentEntity>,
-    onTriggerComponent: (CanvasComponentEntity, String?) -> Unit
+    onTriggerComponent: (CanvasComponentEntity, String?) -> Unit,
+    onKillOverlay: () -> Unit = {}
 ) {
     val density = LocalDensity.current
     val canvasBg = parseHexColorSafe(project.canvasBgColorHex, Color.White)
     var isCollapsedToGoalBubble by remember(project.id) { mutableStateOf(false) }
     var isHiddenFloatingWindow by remember(project.id) { mutableStateOf(false) }
+    var isKilledFloatingWindow by remember(project.id) { mutableStateOf(false) }
+
+    if (isKilledFloatingWindow) return
 
     var windowOffsetX by remember { mutableFloatStateOf(with(density) { 24.dp.toPx() }) }
     var windowOffsetY by remember { mutableFloatStateOf(with(density) { 140.dp.toPx() }) }
@@ -679,10 +683,10 @@ private fun StandaloneDraggableFloatingWindow(
 
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                horizontalArrangement = Arrangement.spacedBy(3.dp)
                             ) {
                                 Surface(
-                                    shape = RoundedCornerShape(8.dp),
+                                    shape = RoundedCornerShape(6.dp),
                                     color = headerContentColor.copy(alpha = 0.16f),
                                     border = BorderStroke(1.dp, headerContentColor.copy(alpha = 0.4f)),
                                     modifier = Modifier
@@ -690,18 +694,20 @@ private fun StandaloneDraggableFloatingWindow(
                                         .testTag("standalone_floating_window_minimize_btn")
                                 ) {
                                     Text(
-                                        text = "− Minimize",
+                                        text = "Minimize",
                                         color = headerContentColor,
-                                        fontSize = 10.sp,
+                                        fontSize = 8.5.sp,
                                         fontWeight = FontWeight.Bold,
-                                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
+                                        maxLines = 1,
+                                        softWrap = false,
+                                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.5.dp)
                                     )
                                 }
 
                                 Surface(
-                                    shape = RoundedCornerShape(8.dp),
-                                    color = Color(0xFFEF4444).copy(alpha = 0.22f),
-                                    border = BorderStroke(1.dp, Color(0xFFEF4444).copy(alpha = 0.65f)),
+                                    shape = RoundedCornerShape(6.dp),
+                                    color = headerContentColor.copy(alpha = 0.16f),
+                                    border = BorderStroke(1.dp, headerContentColor.copy(alpha = 0.4f)),
                                     modifier = Modifier
                                         .clickable { isHiddenFloatingWindow = true }
                                         .testTag("standalone_floating_window_hide_btn")
@@ -709,9 +715,33 @@ private fun StandaloneDraggableFloatingWindow(
                                     Text(
                                         text = "Hide",
                                         color = headerContentColor,
-                                        fontSize = 10.sp,
+                                        fontSize = 8.5.sp,
                                         fontWeight = FontWeight.Bold,
-                                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
+                                        maxLines = 1,
+                                        softWrap = false,
+                                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.5.dp)
+                                    )
+                                }
+
+                                Surface(
+                                    shape = RoundedCornerShape(6.dp),
+                                    color = Color(0xFFEF4444).copy(alpha = 0.85f),
+                                    border = BorderStroke(1.dp, Color(0xFFFCA5A5)),
+                                    modifier = Modifier
+                                        .clickable {
+                                            isKilledFloatingWindow = true
+                                            onKillOverlay()
+                                        }
+                                        .testTag("standalone_floating_window_kill_btn")
+                                ) {
+                                    Text(
+                                        text = "Kill",
+                                        color = Color.White,
+                                        fontSize = 8.5.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        maxLines = 1,
+                                        softWrap = false,
+                                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.5.dp)
                                     )
                                 }
                             }
@@ -735,6 +765,13 @@ private fun StandaloneDraggableFloatingWindow(
                                 else -> Color(0xFFCBD5E1)
                             }
 
+                            val widgetBgBitmap = remember(comp.bgImagePath) {
+                                if (comp.bgImagePath.isNotBlank()) {
+                                    val f = File(comp.bgImagePath)
+                                    if (f.exists()) BitmapFactory.decodeFile(f.absolutePath)?.asImageBitmap() else null
+                                } else null
+                            }
+
                             Surface(
                                 shape = RoundedCornerShape(8.dp),
                                 color = widgetBg,
@@ -755,50 +792,62 @@ private fun StandaloneDraggableFloatingWindow(
                                         onTriggerComponent(comp, nextVal)
                                     }
                             ) {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .padding(horizontal = 8.dp),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            text = comp.label,
-                                            color = widgetText,
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
+                                Box(modifier = Modifier.fillMaxSize()) {
+                                    if (widgetBgBitmap != null) {
+                                        Image(
+                                            bitmap = widgetBgBitmap,
+                                            contentDescription = "Widget Background Image",
+                                            contentScale = ContentScale.Crop,
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .clip(RoundedCornerShape(8.dp))
                                         )
-                                        if (comp.type == "SLIDER") {
-                                            val sliderVal = (comp.currentValue.toFloatOrNull() ?: 50f)
-                                                .coerceIn(0f, comp.sliderMax.toFloat().coerceAtLeast(1f))
-                                            Slider(
-                                                value = sliderVal,
-                                                onValueChange = { v ->
-                                                    onTriggerComponent(comp, v.roundToInt().toString())
-                                                },
-                                                valueRange = 0f..comp.sliderMax.toFloat().coerceAtLeast(1f),
-                                                modifier = Modifier.height(22.dp)
-                                            )
-                                        } else if (comp.type == "INPUT" || comp.type == "TEXT") {
+                                    }
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .padding(horizontal = 8.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Column(modifier = Modifier.weight(1f)) {
                                             Text(
-                                                text = comp.currentValue,
-                                                color = widgetText.copy(alpha = 0.85f),
-                                                fontSize = 10.sp,
-                                                fontFamily = FontFamily.Monospace,
-                                                maxLines = 1
+                                                text = comp.label,
+                                                color = widgetText,
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                            if (comp.type == "SLIDER") {
+                                                val sliderVal = (comp.currentValue.toFloatOrNull() ?: 50f)
+                                                    .coerceIn(0f, comp.sliderMax.toFloat().coerceAtLeast(1f))
+                                                Slider(
+                                                    value = sliderVal,
+                                                    onValueChange = { v ->
+                                                        onTriggerComponent(comp, v.roundToInt().toString())
+                                                    },
+                                                    valueRange = 0f..comp.sliderMax.toFloat().coerceAtLeast(1f),
+                                                    modifier = Modifier.height(22.dp)
+                                                )
+                                            } else if (comp.type == "INPUT" || comp.type == "TEXT") {
+                                                Text(
+                                                    text = comp.currentValue,
+                                                    color = widgetText.copy(alpha = 0.85f),
+                                                    fontSize = 10.sp,
+                                                    fontFamily = FontFamily.Monospace,
+                                                    maxLines = 1
+                                                )
+                                            }
+                                        }
+                                        if (isToggle) {
+                                            Switch(
+                                                checked = isChecked,
+                                                onCheckedChange = { checked ->
+                                                    onTriggerComponent(comp, if (checked) "1" else "0")
+                                                }
                                             )
                                         }
-                                    }
-                                    if (isToggle) {
-                                        Switch(
-                                            checked = isChecked,
-                                            onCheckedChange = { checked ->
-                                                onTriggerComponent(comp, if (checked) "1" else "0")
-                                            }
-                                        )
                                     }
                                 }
                             }

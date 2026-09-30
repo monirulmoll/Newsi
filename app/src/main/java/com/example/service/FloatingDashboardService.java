@@ -306,17 +306,18 @@ extends Service {
         TextView minimizeBtn = new TextView((Context)this);
         minimizeBtn.setText((CharSequence)"Minimize");
         minimizeBtn.setTextColor(headerContentColor);
-        minimizeBtn.setTextSize(2, 9.5f);
+        minimizeBtn.setTextSize(2, 8.5f);
         minimizeBtn.setTypeface(Typeface.DEFAULT_BOLD);
+        minimizeBtn.setSingleLine(true);
         minimizeBtn.setGravity(17);
-        minimizeBtn.setPadding(this.dpToPx(7), this.dpToPx(3), this.dpToPx(7), this.dpToPx(3));
+        minimizeBtn.setPadding(this.dpToPx(5), this.dpToPx(3), this.dpToPx(5), this.dpToPx(3));
         GradientDrawable minBtnBg = new GradientDrawable();
-        minBtnBg.setCornerRadius((float)this.dpToPx(7));
+        minBtnBg.setCornerRadius((float)this.dpToPx(6));
         minBtnBg.setColor(pillFillColor);
         minBtnBg.setStroke(this.dpToPx(1), headerContentColor);
         minimizeBtn.setBackground((Drawable)minBtnBg);
         LinearLayout.LayoutParams minBtnLp = new LinearLayout.LayoutParams(-2, -2);
-        minBtnLp.rightMargin = this.dpToPx(5);
+        minBtnLp.rightMargin = this.dpToPx(4);
         minimizeBtn.setOnClickListener(v -> {
             this.setOverlayFocusable(false);
             panelRoot.setVisibility(8);
@@ -335,15 +336,18 @@ extends Service {
         TextView hideBtn = new TextView((Context)this);
         hideBtn.setText((CharSequence)"Hide");
         hideBtn.setTextColor(headerContentColor);
-        hideBtn.setTextSize(2, 9.5f);
+        hideBtn.setTextSize(2, 8.5f);
         hideBtn.setTypeface(Typeface.DEFAULT_BOLD);
+        hideBtn.setSingleLine(true);
         hideBtn.setGravity(17);
-        hideBtn.setPadding(this.dpToPx(7), this.dpToPx(3), this.dpToPx(7), this.dpToPx(3));
+        hideBtn.setPadding(this.dpToPx(5), this.dpToPx(3), this.dpToPx(5), this.dpToPx(3));
         GradientDrawable hideBtnBg = new GradientDrawable();
-        hideBtnBg.setCornerRadius((float)this.dpToPx(7));
+        hideBtnBg.setCornerRadius((float)this.dpToPx(6));
         hideBtnBg.setColor(pillFillColor);
         hideBtnBg.setStroke(this.dpToPx(1), headerContentColor);
         hideBtn.setBackground((Drawable)hideBtnBg);
+        LinearLayout.LayoutParams hideBtnLp = new LinearLayout.LayoutParams(-2, -2);
+        hideBtnLp.rightMargin = this.dpToPx(4);
         hideBtn.setOnClickListener(v -> {
             this.setOverlayFocusable(false);
             panelRoot.setVisibility(8);
@@ -358,7 +362,35 @@ extends Service {
             }
             Toast.makeText((Context)this, (CharSequence)"Floating Window Hidden. Tap spot or START to show.", (int)0).show();
         });
-        header.addView((View)hideBtn);
+        header.addView((View)hideBtn, (ViewGroup.LayoutParams)hideBtnLp);
+
+        TextView killBtn = new TextView((Context)this);
+        killBtn.setText((CharSequence)"Kill");
+        killBtn.setTextColor(-1);
+        killBtn.setTextSize(2, 8.5f);
+        killBtn.setTypeface(Typeface.DEFAULT_BOLD);
+        killBtn.setSingleLine(true);
+        killBtn.setGravity(17);
+        killBtn.setPadding(this.dpToPx(6), this.dpToPx(3), this.dpToPx(6), this.dpToPx(3));
+        GradientDrawable killBtnBg = new GradientDrawable();
+        killBtnBg.setCornerRadius((float)this.dpToPx(6));
+        killBtnBg.setColor(Color.parseColor((String)"#D9EF4444"));
+        killBtnBg.setStroke(this.dpToPx(1), Color.parseColor((String)"#FCA5A5"));
+        killBtn.setBackground((Drawable)killBtnBg);
+        killBtn.setOnClickListener(v -> {
+            this.setOverlayFocusable(false);
+            this.removeSystemOverlayWindow();
+            running = false;
+            try {
+                this.stopForeground(true);
+            }
+            catch (Throwable ignored) {
+                // empty catch block
+            }
+            this.stopSelf();
+            Toast.makeText((Context)this, (CharSequence)"Floating Window Closed", (int)0).show();
+        });
+        header.addView((View)killBtn);
         boolean isAutoFix = DynamicOverlayRegistry.isActiveAutoFixSize();
         FrameLayout canvasFrame = new FrameLayout((Context)this);
         LinearLayout.LayoutParams canvasLp = new LinearLayout.LayoutParams(-1, 0, 1.0f);
@@ -569,14 +601,51 @@ extends Service {
         return output;
     }
 
+    private Drawable createWidgetBackgroundDrawable(Bitmap rawBgBmp, int widthDp, int heightDp, int fillColor, int strokeWidthPx, int strokeColor) {
+        int cornerRadiusPx = this.dpToPx(8);
+        if (rawBgBmp != null) {
+            int targetW = Math.max(this.dpToPx(48), this.dpToPx(Math.max(48, widthDp)));
+            int targetH = Math.max(this.dpToPx(32), this.dpToPx(Math.max(32, heightDp)));
+            Bitmap cropped = this.createRoundedCenterCropBitmap(rawBgBmp, targetW, targetH, cornerRadiusPx);
+            if (cropped != null) {
+                if (strokeWidthPx > 0) {
+                    Canvas c = new Canvas(cropped);
+                    Paint borderPaint = new Paint(1);
+                    borderPaint.setStyle(Paint.Style.STROKE);
+                    borderPaint.setColor(strokeColor);
+                    borderPaint.setStrokeWidth((float)strokeWidthPx);
+                    float inset = (float)strokeWidthPx / 2.0f;
+                    android.graphics.RectF rect = new android.graphics.RectF(inset, inset, (float)targetW - inset, (float)targetH - inset);
+                    c.drawRoundRect(rect, (float)cornerRadiusPx, (float)cornerRadiusPx, borderPaint);
+                }
+                return new android.graphics.drawable.BitmapDrawable(this.getResources(), cropped);
+            }
+        }
+        GradientDrawable gd = new GradientDrawable();
+        gd.setColor(fillColor);
+        gd.setCornerRadius((float)cornerRadiusPx);
+        if (strokeWidthPx > 0) {
+            gd.setStroke(strokeWidthPx, strokeColor);
+        }
+        return gd;
+    }
+
     private View buildDynamicComponentView(final DynamicOverlayRegistry.OverlayItemSpec spec) {
         String type;
         int bgColor = this.parseSafeColor(spec.bgColorHex, Color.parseColor((String)"#2563EB"));
         int txtColor = this.parseSafeColor(spec.textColorHex, -1);
-        GradientDrawable itemBg = new GradientDrawable();
-        itemBg.setColor(bgColor);
-        itemBg.setCornerRadius((float)this.dpToPx(8));
-        itemBg.setStroke(this.dpToPx(1), Color.parseColor((String)"#CBD5E1"));
+        Bitmap widgetBgBitmap = null;
+        if (spec.bgImagePath != null && !spec.bgImagePath.trim().isEmpty()) {
+            File bgImgFile = new File(spec.bgImagePath.trim());
+            if (bgImgFile.exists() && bgImgFile.isFile()) {
+                try {
+                    widgetBgBitmap = BitmapFactory.decodeFile((String)bgImgFile.getAbsolutePath());
+                } catch (Throwable ignored) {
+                }
+            }
+        }
+        final Bitmap resolvedWidgetBgBmp = widgetBgBitmap;
+        Drawable itemBg = this.createWidgetBackgroundDrawable(resolvedWidgetBgBmp, spec.widthDp, spec.heightDp, bgColor, this.dpToPx(1), Color.parseColor((String)"#CBD5E1"));
         switch (type = spec.type != null ? spec.type : "BUTTON") {
             case "TOGGLE": {
                 LinearLayout row = new LinearLayout((Context)this);
@@ -612,11 +681,9 @@ extends Service {
                 Runnable updateVisuals = () -> {
                     boolean on = isCheckedState[0];
                     boolean isDefaultWhite = spec.bgColorHex == null || spec.bgColorHex.trim().isEmpty() || "#FFFFFF".equalsIgnoreCase(spec.bgColorHex.trim());
-                    GradientDrawable rowBg = new GradientDrawable();
-                    rowBg.setColor(on && isDefaultWhite ? Color.parseColor((String)"#ECFDF5") : bgColor);
-                    rowBg.setCornerRadius((float)this.dpToPx(8));
-                    rowBg.setStroke(this.dpToPx(2), on ? Color.parseColor((String)"#00C853") : Color.parseColor((String)"#64748B"));
-                    row.setBackground((Drawable)rowBg);
+                    int fillCol = on && isDefaultWhite ? Color.parseColor((String)"#ECFDF5") : bgColor;
+                    int strokeCol = on ? Color.parseColor((String)"#00C853") : Color.parseColor((String)"#64748B");
+                    row.setBackground(this.createWidgetBackgroundDrawable(resolvedWidgetBgBmp, spec.widthDp, spec.heightDp, fillCol, this.dpToPx(2), strokeCol));
                     GradientDrawable badgeBg = new GradientDrawable();
                     badgeBg.setCornerRadius((float)this.dpToPx(4));
                     badgeBg.setColor(on ? Color.parseColor((String)"#00C853") : Color.parseColor((String)"#EF4444"));
@@ -649,7 +716,7 @@ extends Service {
                 LinearLayout box = new LinearLayout((Context)this);
                 box.setOrientation(1);
                 box.setGravity(16);
-                box.setBackground((Drawable)itemBg);
+                box.setBackground(itemBg);
                 box.setPadding(this.dpToPx(8), this.dpToPx(4), this.dpToPx(8), this.dpToPx(4));
                 final int maxVal = Math.max(1, spec.sliderMax);
                 final TextView labelTv = new TextView((Context)this);
@@ -709,7 +776,7 @@ extends Service {
                 et.setHintTextColor(-3355444);
                 et.setTextSize(2, 12.0f);
                 et.setSingleLine(true);
-                et.setBackground((Drawable)itemBg);
+                et.setBackground(itemBg);
                 et.setPadding(this.dpToPx(10), this.dpToPx(4), this.dpToPx(10), this.dpToPx(4));
                 et.setOnClickListener(v -> {
                     this.setOverlayFocusable(true);
@@ -750,11 +817,7 @@ extends Service {
                 linkRow.setOrientation(0);
                 linkRow.setGravity(16);
                 linkRow.setPadding(this.dpToPx(10), this.dpToPx(4), this.dpToPx(10), this.dpToPx(4));
-                GradientDrawable linkBg = new GradientDrawable();
-                linkBg.setColor(bgColor);
-                linkBg.setCornerRadius((float)this.dpToPx(8));
-                linkBg.setStroke(this.dpToPx(2), Color.parseColor((String)"#38BDF8"));
-                linkRow.setBackground((Drawable)linkBg);
+                linkRow.setBackground(this.createWidgetBackgroundDrawable(resolvedWidgetBgBmp, spec.widthDp, spec.heightDp, bgColor, this.dpToPx(2), Color.parseColor((String)"#38BDF8")));
                 TextView iconTv = new TextView((Context)this);
                 iconTv.setText((CharSequence)"\ud83c\udf10");
                 iconTv.setTextSize(2, 12.0f);
@@ -792,9 +855,10 @@ extends Service {
                 Bitmap bmp;
                 File imgFile;
                 ImageView iv = new ImageView((Context)this);
-                iv.setBackground((Drawable)itemBg);
+                iv.setBackground(itemBg);
                 iv.setScaleType(ImageView.ScaleType.CENTER_CROP);
-                if (spec.customImagePath != null && !spec.customImagePath.trim().isEmpty() && (imgFile = new File(spec.customImagePath.trim())).exists() && (bmp = BitmapFactory.decodeFile((String)imgFile.getAbsolutePath())) != null) {
+                String imgPathToUse = spec.customImagePath != null && !spec.customImagePath.trim().isEmpty() ? spec.customImagePath.trim() : (spec.bgImagePath != null ? spec.bgImagePath.trim() : "");
+                if (!imgPathToUse.isEmpty() && (imgFile = new File(imgPathToUse)).exists() && (bmp = BitmapFactory.decodeFile((String)imgFile.getAbsolutePath())) != null) {
                     iv.setImageBitmap(bmp);
                 }
                 boolean[] isImgOn = new boolean[]{"1".equals(spec.currentValue) || "true".equalsIgnoreCase(spec.currentValue)};
@@ -819,7 +883,7 @@ extends Service {
                 tv.setTypeface(Typeface.DEFAULT_BOLD);
                 tv.setGravity(16);
                 tv.setPadding(this.dpToPx(8), this.dpToPx(4), this.dpToPx(8), this.dpToPx(4));
-                tv.setBackground((Drawable)itemBg);
+                tv.setBackground(itemBg);
                 boolean[] isTxtOn = new boolean[]{"1".equals(spec.currentValue) || "true".equalsIgnoreCase(spec.currentValue)};
                 tv.setOnClickListener(v -> {
                     isTxtOn[0] = !isTxtOn[0];
@@ -859,12 +923,11 @@ extends Service {
         pillLp.leftMargin = this.dpToPx(6);
         Runnable updateBtnVisuals = () -> {
             boolean on = isBtnOn[0];
-            GradientDrawable btnBg = new GradientDrawable();
-            btnBg.setColor(on ? Color.parseColor((String)"#00C853") : bgColor);
-            btnBg.setCornerRadius((float)this.dpToPx(8));
-            btnBg.setStroke(this.dpToPx(2), on ? Color.parseColor((String)"#00C853") : Color.parseColor((String)"#475569"));
-            btnRow.setBackground((Drawable)btnBg);
-            labelTv.setTextColor(on ? -1 : txtColor);
+            boolean isDefaultBlue = spec.bgColorHex == null || spec.bgColorHex.trim().isEmpty() || "#2563EB".equalsIgnoreCase(spec.bgColorHex.trim());
+            int fillCol = on && isDefaultBlue ? Color.parseColor((String)"#00C853") : bgColor;
+            int strokeCol = on ? Color.parseColor((String)"#00C853") : Color.parseColor((String)"#475569");
+            btnRow.setBackground(this.createWidgetBackgroundDrawable(resolvedWidgetBgBmp, spec.widthDp, spec.heightDp, fillCol, this.dpToPx(2), strokeCol));
+            labelTv.setTextColor(on && isDefaultBlue && resolvedWidgetBgBmp == null ? -1 : txtColor);
             GradientDrawable pillBg = new GradientDrawable();
             pillBg.setColor(on ? Color.parseColor((String)"#047857") : Color.parseColor((String)"#EF4444"));
             pillBg.setCornerRadius((float)this.dpToPx(99));

@@ -239,6 +239,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     heightDp = spec.heightDp,
                     bgColorHex = spec.bgColorHex ?: "#FFFFFF",
                     textColorHex = spec.textColorHex ?: "#0F172A",
+                    bgImagePath = spec.bgImagePath ?: "",
                     customImagePath = spec.customImagePath ?: "",
                     soundTrigger = spec.soundTrigger ?: "NONE",
                     customSoundPath = spec.customSoundPath ?: "",
@@ -921,6 +922,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 heightDp = comp.heightDp
                 bgColorHex = comp.bgColorHex
                 textColorHex = comp.textColorHex
+                bgImagePath = comp.bgImagePath
                 customImagePath = comp.customImagePath
                 soundTrigger = comp.soundTrigger
                 customSoundPath = comp.customSoundPath
@@ -1426,6 +1428,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 heightDp = comp.heightDp
                 bgColorHex = comp.bgColorHex
                 textColorHex = comp.textColorHex
+                bgImagePath = comp.bgImagePath
                 customImagePath = comp.customImagePath
                 soundTrigger = comp.soundTrigger
                 customSoundPath = comp.customSoundPath
@@ -1640,6 +1643,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         heightDp = comp.heightDp
                         bgColorHex = comp.bgColorHex
                         textColorHex = comp.textColorHex
+                        bgImagePath = comp.bgImagePath
                         customImagePath = comp.customImagePath
                         soundTrigger = comp.soundTrigger
                         customSoundPath = comp.customSoundPath

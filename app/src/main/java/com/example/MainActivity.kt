@@ -869,7 +869,7 @@ fun StudioCanvasBuilderScreen(
                                                 modifier = Modifier.weight(1f)
                                             )
                                             Row(
-                                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                                horizontalArrangement = Arrangement.spacedBy(3.dp),
                                                 verticalAlignment = Alignment.CenterVertically
                                             ) {
                                                 Surface(
@@ -878,23 +878,42 @@ fun StudioCanvasBuilderScreen(
                                                     border = BorderStroke(1.dp, previewHeaderTextColor.copy(alpha = 0.38f))
                                                 ) {
                                                     Text(
-                                                        text = "− Minimize",
+                                                        text = "Minimize",
                                                         color = previewHeaderTextColor,
                                                         fontSize = 8.sp,
                                                         fontWeight = FontWeight.Bold,
+                                                        maxLines = 1,
+                                                        softWrap = false,
                                                         modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
                                                     )
                                                 }
                                                 Surface(
                                                     shape = RoundedCornerShape(6.dp),
-                                                    color = Color(0xFFEF4444).copy(alpha = 0.22f),
-                                                    border = BorderStroke(1.dp, Color(0xFFEF4444).copy(alpha = 0.6f))
+                                                    color = previewHeaderTextColor.copy(alpha = 0.16f),
+                                                    border = BorderStroke(1.dp, previewHeaderTextColor.copy(alpha = 0.38f))
                                                 ) {
                                                     Text(
                                                         text = "Hide",
                                                         color = previewHeaderTextColor,
                                                         fontSize = 8.sp,
                                                         fontWeight = FontWeight.Bold,
+                                                        maxLines = 1,
+                                                        softWrap = false,
+                                                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                                                    )
+                                                }
+                                                Surface(
+                                                    shape = RoundedCornerShape(6.dp),
+                                                    color = Color(0xFFEF4444).copy(alpha = 0.85f),
+                                                    border = BorderStroke(1.dp, Color(0xFFFCA5A5))
+                                                ) {
+                                                    Text(
+                                                        text = "Kill",
+                                                        color = Color.White,
+                                                        fontSize = 8.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        maxLines = 1,
+                                                        softWrap = false,
                                                         modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
                                                     )
                                                 }

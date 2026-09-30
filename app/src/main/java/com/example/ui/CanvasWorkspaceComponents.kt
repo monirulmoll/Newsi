@@ -568,6 +568,7 @@ fun InteractiveOverlayCanvas(
     val canvasBg = parseHexColorSafe(project.canvasBgColorHex, Color.White)
     var isCollapsedToGoalBubble by remember(project.id) { mutableStateOf(false) }
     var isHiddenFloatingWindow by remember(project.id) { mutableStateOf(false) }
+    var isKilledFloatingWindow by remember(project.id) { mutableStateOf(false) }
 
     val activeLogoPath = project.floatingLogoPath.ifBlank { project.appLogoPath }
     val floatingLogoBitmap = remember(activeLogoPath) {
@@ -692,7 +693,33 @@ fun InteractiveOverlayCanvas(
                         .padding(8.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    if (isHiddenFloatingWindow) {
+                    if (isKilledFloatingWindow) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Surface(
+                                shape = RoundedCornerShape(99.dp),
+                                color = Color(0xFF2A1215),
+                                border = BorderStroke(1.dp, Color(0xFFEF4444)),
+                                modifier = Modifier
+                                    .clickable {
+                                        isKilledFloatingWindow = false
+                                        isHiddenFloatingWindow = false
+                                        isCollapsedToGoalBubble = false
+                                    }
+                                    .testTag("canvas_killed_restore_button")
+                            ) {
+                                Text(
+                                    text = "✖ Floating Window Closed (Killed) — Tap to Reopen",
+                                    color = Color(0xFFFCA5A5),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
+                                )
+                            }
+                        }
+                    } else if (isHiddenFloatingWindow) {
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -803,19 +830,19 @@ fun InteractiveOverlayCanvas(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .clickable { onOpenEditFloatingPanel() }
-                                        .padding(horizontal = 10.dp, vertical = 8.dp)
+                                        .padding(horizontal = 8.dp, vertical = 7.dp)
                                         .testTag("floating_panel_header_bar"),
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Row(
                                         verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        horizontalArrangement = Arrangement.spacedBy(5.dp),
                                         modifier = Modifier.weight(1f)
                                     ) {
                                         Box(
                                             modifier = Modifier
-                                                .size(24.dp)
+                                                .size(22.dp)
                                                 .clip(CircleShape)
                                                 .background(
                                                     if (isDarkBg) Color.White.copy(alpha = 0.16f)
@@ -840,7 +867,7 @@ fun InteractiveOverlayCanvas(
                                                     imageVector = Icons.Default.Edit,
                                                     contentDescription = "Customize Panel Header",
                                                     tint = headerTextColor,
-                                                    modifier = Modifier.size(12.dp)
+                                                    modifier = Modifier.size(11.dp)
                                                 )
                                             }
                                         }
@@ -848,9 +875,10 @@ fun InteractiveOverlayCanvas(
                                         Text(
                                             text = resolvedPanelTitle,
                                             color = headerTextColor,
-                                            fontSize = 13.sp,
+                                            fontSize = 11.sp,
                                             fontWeight = FontWeight.Bold,
                                             maxLines = 1,
+                                            softWrap = false,
                                             overflow = TextOverflow.Ellipsis,
                                             modifier = Modifier.weight(1f, fill = false)
                                         )
@@ -858,37 +886,16 @@ fun InteractiveOverlayCanvas(
 
                                     Row(
                                         verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                        horizontalArrangement = Arrangement.spacedBy(3.dp)
                                     ) {
-                                        // Quick Change Floating Window Background button on Header Bar
-                                        Box(
-                                            modifier = Modifier
-                                                .size(20.dp)
-                                                .clip(CircleShape)
-                                                .background(
-                                                    if (isDarkBg) Color.White.copy(alpha = 0.18f)
-                                                    else Color.Black.copy(alpha = 0.08f)
-                                                )
-                                                .border(BorderStroke(1.dp, headerTextColor.copy(alpha = 0.6f)), CircleShape)
-                                                .clickable { onOpenChangeBackground() }
-                                                .testTag("floating_panel_bg_button"),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Default.Palette,
-                                                contentDescription = "Change Floating Window Background",
-                                                tint = headerTextColor,
-                                                modifier = Modifier.size(11.dp)
-                                            )
-                                        }
-
                                         // Minimize button (collapses to Floating Bubble)
                                         Surface(
-                                            shape = RoundedCornerShape(7.dp),
+                                            shape = RoundedCornerShape(6.dp),
                                             color = if (isDarkBg) Color.White.copy(alpha = 0.18f) else Color.Black.copy(alpha = 0.08f),
                                             border = BorderStroke(1.dp, headerTextColor.copy(alpha = 0.75f)),
                                             modifier = Modifier
                                                 .clickable {
+                                                    isKilledFloatingWindow = false
                                                     isHiddenFloatingWindow = false
                                                     isCollapsedToGoalBubble = true
                                                 }
@@ -897,19 +904,22 @@ fun InteractiveOverlayCanvas(
                                             Text(
                                                 text = "Minimize",
                                                 color = headerTextColor,
-                                                fontSize = 9.sp,
+                                                fontSize = 8.5.sp,
                                                 fontWeight = FontWeight.Bold,
-                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
+                                                maxLines = 1,
+                                                softWrap = false,
+                                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.5.dp)
                                             )
                                         }
 
                                         // Hide button (hides Floating Window)
                                         Surface(
-                                            shape = RoundedCornerShape(7.dp),
+                                            shape = RoundedCornerShape(6.dp),
                                             color = if (isDarkBg) Color.White.copy(alpha = 0.18f) else Color.Black.copy(alpha = 0.08f),
                                             border = BorderStroke(1.dp, headerTextColor.copy(alpha = 0.75f)),
                                             modifier = Modifier
                                                 .clickable {
+                                                    isKilledFloatingWindow = false
                                                     isCollapsedToGoalBubble = false
                                                     isHiddenFloatingWindow = true
                                                 }
@@ -918,9 +928,35 @@ fun InteractiveOverlayCanvas(
                                             Text(
                                                 text = "Hide",
                                                 color = headerTextColor,
-                                                fontSize = 9.sp,
+                                                fontSize = 8.5.sp,
                                                 fontWeight = FontWeight.Bold,
-                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
+                                                maxLines = 1,
+                                                softWrap = false,
+                                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.5.dp)
+                                            )
+                                        }
+
+                                        // Kill button (completely closes Floating Window)
+                                        Surface(
+                                            shape = RoundedCornerShape(6.dp),
+                                            color = Color(0xFFEF4444).copy(alpha = 0.85f),
+                                            border = BorderStroke(1.dp, Color(0xFFFCA5A5)),
+                                            modifier = Modifier
+                                                .clickable {
+                                                    isCollapsedToGoalBubble = false
+                                                    isHiddenFloatingWindow = false
+                                                    isKilledFloatingWindow = true
+                                                }
+                                                .testTag("floating_panel_kill_button")
+                                        ) {
+                                            Text(
+                                                text = "Kill",
+                                                color = Color.White,
+                                                fontSize = 8.5.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                maxLines = 1,
+                                                softWrap = false,
+                                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.5.dp)
                                             )
                                         }
                                     }
@@ -1005,6 +1041,13 @@ fun InteractiveOverlayCanvas(
                                                 else -> Color(0xFFCBD5E1)
                                             }
 
+                                            val widgetBgBitmap = remember(comp.bgImagePath) {
+                                                if (comp.bgImagePath.isNotBlank()) {
+                                                    val f = File(comp.bgImagePath)
+                                                    if (f.exists()) BitmapFactory.decodeFile(f.absolutePath)?.asImageBitmap() else null
+                                                } else null
+                                            }
+
                                             Surface(
                                                 shape = RoundedCornerShape(8.dp),
                                                 color = widgetBg,
@@ -1044,51 +1087,63 @@ fun InteractiveOverlayCanvas(
                                                     }
                                                     .testTag("canvas_widget_${comp.id}")
                                             ) {
-                                                Row(
-                                                    modifier = Modifier
-                                                        .fillMaxSize()
-                                                        .padding(horizontal = 8.dp),
-                                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                                    verticalAlignment = Alignment.CenterVertically
-                                                ) {
-                                                    Column(modifier = Modifier.weight(1f)) {
-                                                        Text(
-                                                            text = comp.label,
-                                                            color = widgetText,
-                                                            fontSize = 11.sp,
-                                                            fontWeight = FontWeight.Bold,
-                                                            maxLines = 1,
-                                                            overflow = TextOverflow.Ellipsis
+                                                Box(modifier = Modifier.fillMaxSize()) {
+                                                    if (widgetBgBitmap != null) {
+                                                        Image(
+                                                            bitmap = widgetBgBitmap,
+                                                            contentDescription = "Widget Background Image",
+                                                            contentScale = ContentScale.Crop,
+                                                            modifier = Modifier
+                                                                .fillMaxSize()
+                                                                .clip(RoundedCornerShape(8.dp))
                                                         )
-                                                        if (comp.type == "SLIDER") {
-                                                            val sliderVal = (comp.currentValue.toFloatOrNull() ?: 50f)
-                                                                .coerceIn(0f, comp.sliderMax.toFloat().coerceAtLeast(1f))
-                                                            Slider(
-                                                                value = sliderVal,
-                                                                onValueChange = { v ->
-                                                                    onTriggerComponent(comp, v.roundToInt().toString())
-                                                                },
-                                                                valueRange = 0f..comp.sliderMax.toFloat().coerceAtLeast(1f),
-                                                                modifier = Modifier.height(22.dp)
-                                                            )
-                                                        } else if (comp.type == "INPUT" || comp.type == "TEXT") {
+                                                    }
+                                                    Row(
+                                                        modifier = Modifier
+                                                            .fillMaxSize()
+                                                            .padding(horizontal = 8.dp),
+                                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                                        verticalAlignment = Alignment.CenterVertically
+                                                    ) {
+                                                        Column(modifier = Modifier.weight(1f)) {
                                                             Text(
-                                                                text = comp.currentValue,
-                                                                color = widgetText.copy(alpha = 0.85f),
-                                                                fontSize = 10.sp,
-                                                                fontFamily = FontFamily.Monospace,
-                                                                maxLines = 1
+                                                                text = comp.label,
+                                                                color = widgetText,
+                                                                fontSize = 11.sp,
+                                                                fontWeight = FontWeight.Bold,
+                                                                maxLines = 1,
+                                                                overflow = TextOverflow.Ellipsis
+                                                            )
+                                                            if (comp.type == "SLIDER") {
+                                                                val sliderVal = (comp.currentValue.toFloatOrNull() ?: 50f)
+                                                                    .coerceIn(0f, comp.sliderMax.toFloat().coerceAtLeast(1f))
+                                                                Slider(
+                                                                    value = sliderVal,
+                                                                    onValueChange = { v ->
+                                                                        onTriggerComponent(comp, v.roundToInt().toString())
+                                                                    },
+                                                                    valueRange = 0f..comp.sliderMax.toFloat().coerceAtLeast(1f),
+                                                                    modifier = Modifier.height(22.dp)
+                                                                )
+                                                            } else if (comp.type == "INPUT" || comp.type == "TEXT") {
+                                                                Text(
+                                                                    text = comp.currentValue,
+                                                                    color = widgetText.copy(alpha = 0.85f),
+                                                                    fontSize = 10.sp,
+                                                                    fontFamily = FontFamily.Monospace,
+                                                                    maxLines = 1
+                                                                )
+                                                            }
+                                                        }
+                                                        if (isToggle) {
+                                                            Switch(
+                                                                checked = isChecked,
+                                                                onCheckedChange = { checked ->
+                                                                    onSelectComponent(comp.id)
+                                                                    onTriggerComponent(comp, if (checked) "1" else "0")
+                                                                }
                                                             )
                                                         }
-                                                    }
-                                                    if (isToggle) {
-                                                        Switch(
-                                                            checked = isChecked,
-                                                            onCheckedChange = { checked ->
-                                                                onSelectComponent(comp.id)
-                                                                onTriggerComponent(comp, if (checked) "1" else "0")
-                                                            }
-                                                        )
                                                     }
                                                 }
                                             }
