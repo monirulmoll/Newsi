@@ -53,6 +53,7 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.InstallMobile
 import androidx.compose.material.icons.filled.Layers
+import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Stop
@@ -67,7 +68,9 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -75,6 +78,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -94,6 +98,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import java.io.File
+import java.util.Locale
+import kotlin.math.roundToInt
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.CanvasComponentEntity
 import com.example.engine.LocalConfigStateWriter
@@ -112,6 +118,7 @@ import com.example.ui.StudioEditCodeDialog
 import com.example.ui.StudioProjectLauncherScreen
 import com.example.ui.StudioUiState
 import com.example.ui.StudioWelcomeModeScreen
+import com.example.ui.parseHexColorSafe
 import com.example.ui.theme.MyApplicationTheme
 
 class MainActivity : ComponentActivity() {
@@ -218,6 +225,14 @@ class MainActivity : ComponentActivity() {
                                 initialComponents = standaloneItems,
                                 compiledPackageName = uiState.compiledAppPackageName.ifBlank { contextPackageName() },
                                 isStandaloneInstalledApk = uiState.isBundledStandaloneApk,
+                                isOverlayRunning = uiState.isSystemOverlayRunning,
+                                hasStoragePermission = uiState.hasStoragePermission,
+                                hasOverlayPermission = uiState.hasOverlayPermission,
+                                statusMessage = uiState.statusToast,
+                                onStartOverlay = viewModel::launchSystemFloatingOverlay,
+                                onStopOverlay = viewModel::stopSystemFloatingOverlay,
+                                onRefreshPermissions = viewModel::refreshOverlayPermission,
+                                onTriggerComponentLive = viewModel::triggerComponentAction,
                                 onBackToStudioEditor = if (uiState.isBundledStandaloneApk) null else {
                                     { viewModel.closeCompiledAppPreview() }
                                 }
@@ -227,7 +242,9 @@ class MainActivity : ComponentActivity() {
 
                     StudioDestination.CANVAS_WORKSPACE -> {
                         BackHandler {
-                            if (uiState.showEditFloatingPanelDialog) {
+                            if (uiState.showChangeBackgroundDialog) {
+                                viewModel.openChangeBackgroundDialog(false)
+                            } else if (uiState.showEditFloatingPanelDialog) {
                                 viewModel.openEditFloatingPanelDialog(false)
                             } else if (uiState.showEditCodeDialog) {
                                 viewModel.openEditCodeDialog(false)
@@ -268,6 +285,10 @@ class MainActivity : ComponentActivity() {
                             onDismissEditFloatingPanel = { viewModel.openEditFloatingPanelDialog(false) },
                             onSaveFloatingPanelConfig = viewModel::updateFloatingPanelNameAndLogo,
                             onImportFloatingLogoUri = viewModel::importProjectLogoUri,
+                            onOpenChangeBackground = { viewModel.openChangeBackgroundDialog(true) },
+                            onDismissChangeBackground = { viewModel.openChangeBackgroundDialog(false) },
+                            onSaveFloatingBackground = viewModel::updateFloatingWindowBackground,
+                            onImportFloatingBackgroundUri = viewModel::importFloatingBackgroundUri,
                             onOpenEditCode = { viewModel.openEditCodeDialog(true) },
                             onDismissEditCode = { viewModel.openEditCodeDialog(false) },
                             onCompileCodeToVisual = { edited ->
@@ -319,6 +340,10 @@ fun StudioCanvasBuilderScreen(
     onDismissEditFloatingPanel: () -> Unit = {},
     onSaveFloatingPanelConfig: (String, String) -> Unit = { _, _ -> },
     onImportFloatingLogoUri: (Uri, (String) -> Unit) -> Unit = { _, _ -> },
+    onOpenChangeBackground: () -> Unit = {},
+    onDismissChangeBackground: () -> Unit = {},
+    onSaveFloatingBackground: (String, String) -> Unit = { _, _ -> },
+    onImportFloatingBackgroundUri: (Uri, (String) -> Unit) -> Unit = { _, _ -> },
     onOpenEditCode: () -> Unit = {},
     onDismissEditCode: () -> Unit = {},
     onCompileCodeToVisual: (Map<String, String>) -> Unit = {},
@@ -362,12 +387,20 @@ fun StudioCanvasBuilderScreen(
     }
 
     if (uiState.showEditFloatingPanelDialog) {
-        var editedPanelTitle by remember(project.id, project.overlayTitle) {
+        var editedPanelTitle by remember(project.id) {
             mutableStateOf(project.overlayTitle.ifBlank { project.name })
         }
-        var editedFloatingLogoPath by remember(project.id, project.floatingLogoPath, project.appLogoPath) {
+        var editedFloatingLogoPath by remember(project.id) {
             mutableStateOf(project.floatingLogoPath.ifBlank { project.appLogoPath })
         }
+        val currentPanelBgColor = remember(project.canvasBgColorHex) {
+            parseHexColorSafe(project.canvasBgColorHex, Color.White)
+        }
+        val isDarkPanelBg = remember(project.canvasBgColorHex, project.canvasBgImagePath) {
+            project.canvasBgImagePath.isNotBlank() ||
+                (currentPanelBgColor.red * 0.299f + currentPanelBgColor.green * 0.587f + currentPanelBgColor.blue * 0.114f) < 0.55f
+        }
+        val panelHeaderTextColor = if (isDarkPanelBg) Color.White else Color(0xFF0F172A)
 
         val floatingLogoPickerLauncher = rememberLauncherForActivityResult(
             contract = ActivityResultContracts.PickVisualMedia()
@@ -424,11 +457,10 @@ fun StudioCanvasBuilderScreen(
                         color = Color(0xFF94A3B8)
                     )
 
-                    // Live Floating Header Preview
+                    // Live Floating Header Preview (using actual floating window background, no permanent blue)
                     Surface(
                         shape = RoundedCornerShape(10.dp),
-                        color = Color(0xFF2563EB),
-                        border = BorderStroke(1.dp, Color(0xFF60A5FA)),
+                        color = currentPanelBgColor,
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Row(
@@ -447,8 +479,7 @@ fun StudioCanvasBuilderScreen(
                                     modifier = Modifier
                                         .size(26.dp)
                                         .clip(CircleShape)
-                                        .background(Color(0xFF1D4ED8))
-                                        .border(BorderStroke(1.dp, Color.White), CircleShape),
+                                        .background(panelHeaderTextColor.copy(alpha = 0.12f)),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     if (previewGoalBitmap != null) {
@@ -464,7 +495,7 @@ fun StudioCanvasBuilderScreen(
                                         Icon(
                                             imageVector = Icons.Default.Image,
                                             contentDescription = null,
-                                            tint = Color.White,
+                                            tint = panelHeaderTextColor,
                                             modifier = Modifier.size(14.dp)
                                         )
                                     }
@@ -473,7 +504,7 @@ fun StudioCanvasBuilderScreen(
                                     text = editedPanelTitle.trim().ifEmpty {
                                         project.name.trim().ifEmpty { "Floating Window" }
                                     },
-                                    color = Color.White,
+                                    color = panelHeaderTextColor,
                                     fontSize = 13.sp,
                                     fontWeight = FontWeight.Bold,
                                     maxLines = 1,
@@ -482,7 +513,7 @@ fun StudioCanvasBuilderScreen(
                             }
                             Text(
                                 text = "✕",
-                                color = Color.White,
+                                color = panelHeaderTextColor,
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.Bold
                             )
@@ -592,10 +623,47 @@ fun StudioCanvasBuilderScreen(
                         label = { Text("Floating Window Name (Header Title)", color = Color(0xFF94A3B8)) },
                         placeholder = { Text("Enter floating window name...", color = Color(0xFF64748B)) },
                         singleLine = true,
+                        shape = RoundedCornerShape(12.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedContainerColor = Color(0xFF081329),
+                            unfocusedContainerColor = Color(0xFF081329),
+                            focusedBorderColor = Color(0xFF38BDF8),
+                            unfocusedBorderColor = Color(0xFF1E293B),
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White,
+                            cursorColor = Color(0xFF38BDF8)
+                        ),
                         modifier = Modifier
                             .fillMaxWidth()
                             .testTag("edit_floating_panel_name_input")
                     )
+
+                    OutlinedButton(
+                        onClick = {
+                            onSaveFloatingPanelConfig(editedPanelTitle, editedFloatingLogoPath)
+                            onDismissEditFloatingPanel()
+                            onOpenChangeBackground()
+                        },
+                        border = BorderStroke(1.dp, Color(0xFF38BDF8)),
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("edit_panel_open_bg_dialog_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Palette,
+                            contentDescription = "Change Floating Window Background",
+                            tint = Color(0xFF38BDF8),
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "Change Floating Window Background",
+                            color = Color.White,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                 }
             },
             confirmButton = {
@@ -614,6 +682,500 @@ fun StudioCanvasBuilderScreen(
             dismissButton = {
                 TextButton(onClick = onDismissEditFloatingPanel) {
                     Text("Cancel", color = Color(0xFF94A3B8))
+                }
+            }
+        )
+    }
+
+    if (uiState.showChangeBackgroundDialog) {
+        var editedBgHex by remember(project.id) {
+            mutableStateOf(project.canvasBgColorHex.ifBlank { "#FFFFFF" })
+        }
+        var editedBgImagePath by remember(project.id) {
+            mutableStateOf(project.canvasBgImagePath)
+        }
+
+        // Helper to extract 6-char RGB and initial opacity percentage from #RRGGBB or #AARRGGBB
+        fun extractRgb6(hex: String): String {
+            val clean = hex.trim().removePrefix("#").uppercase(Locale.US)
+            return when (clean.length) {
+                8 -> clean.substring(2)
+                6 -> clean
+                else -> "FFFFFF"
+            }
+        }
+
+        fun extractAlphaPercent(hex: String): Float {
+            val clean = hex.trim().removePrefix("#").uppercase(Locale.US)
+            if (clean.length == 8) {
+                val alphaInt = clean.substring(0, 2).toIntOrNull(16) ?: 255
+                return ((alphaInt / 255f) * 100f).coerceIn(10f, 100f)
+            }
+            return 100f
+        }
+
+        fun combineAlphaAndRgb(alphaPercent: Float, currentHex: String): String {
+            val rgb6 = extractRgb6(currentHex)
+            val pct = alphaPercent.roundToInt().coerceIn(10, 100)
+            if (pct >= 100) return "#$rgb6"
+            val alphaByte = ((pct / 100f) * 255f).roundToInt().coerceIn(25, 255)
+            val alphaHex = String.format(Locale.US, "%02X", alphaByte)
+            return "#$alphaHex$rgb6"
+        }
+
+        var bgOpacityPercent by remember(project.id) {
+            mutableFloatStateOf(extractAlphaPercent(project.canvasBgColorHex))
+        }
+
+        val bgImagePickerLauncher = rememberLauncherForActivityResult(
+            contract = ActivityResultContracts.PickVisualMedia()
+        ) { uri ->
+            if (uri != null) {
+                onImportFloatingBackgroundUri(uri) { savedPath ->
+                    editedBgImagePath = savedPath
+                    onSaveFloatingBackground(editedBgHex, savedPath)
+                }
+            }
+        }
+
+        val previewBgBitmap = remember(editedBgImagePath) {
+            if (editedBgImagePath.isNotBlank()) {
+                val f = File(editedBgImagePath)
+                if (f.exists()) BitmapFactory.decodeFile(f.absolutePath)?.asImageBitmap() else null
+            } else null
+        }
+
+        val previewBgColor = remember(editedBgHex) {
+            parseHexColorSafe(editedBgHex, Color.White)
+        }
+
+        val bgPresets = remember {
+            listOf(
+                "#FFFFFF" to "Pure White",
+                "#0F172A" to "Midnight Dark",
+                "#0A1224" to "Studio Navy",
+                "#050811" to "OLED Black",
+                "#1E293B" to "Slate Steel",
+                "#1E1B4B" to "Deep Indigo",
+                "#2E1065" to "Cyber Violet",
+                "#062E22" to "Emerald Matrix",
+                "#2A0A18" to "Crimson Abyss",
+                "#0C2D48" to "Ocean Blue",
+                "#CC0F172A" to "Dark Glass",
+                "#F1F5F9" to "Soft Ice"
+            )
+        }
+
+        AlertDialog(
+            onDismissRequest = onDismissChangeBackground,
+            containerColor = Color(0xFF0E1528),
+            titleContentColor = Color.White,
+            textContentColor = Color(0xFFE2E8F0),
+            title = {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(28.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(
+                                Brush.linearGradient(
+                                    colors = listOf(Color(0xFF7C3AED), Color(0xFF2563EB))
+                                )
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Palette,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                    Column {
+                        Text(
+                            text = "Floating Window Background",
+                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = 15.sp,
+                            color = Color.White
+                        )
+                        Text(
+                            text = "Customize solid colors, glass opacity, or wallpaper image",
+                            fontSize = 10.sp,
+                            color = Color(0xFF94A3B8)
+                        )
+                    }
+                }
+            },
+            text = {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState())
+                ) {
+                    // 1. Live Floating Window Preview Box
+                    Surface(
+                        shape = RoundedCornerShape(14.dp),
+                        color = Color(0xFF070B14),
+                        border = BorderStroke(1.dp, Color(0xFF1E293B)),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("floating_bg_live_preview")
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            val isDarkPreviewBg = remember(editedBgHex, previewBgBitmap) {
+                                previewBgBitmap != null ||
+                                    (previewBgColor.red * 0.299f + previewBgColor.green * 0.587f + previewBgColor.blue * 0.114f) < 0.55f
+                            }
+                            val previewHeaderTextColor = if (isDarkPreviewBg) Color.White else Color(0xFF0F172A)
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = previewBgColor,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(108.dp)
+                            ) {
+                                Box(modifier = Modifier.fillMaxSize()) {
+                                    if (previewBgBitmap != null) {
+                                        Image(
+                                            bitmap = previewBgBitmap,
+                                            contentDescription = "Live Background Image Preview",
+                                            contentScale = ContentScale.Crop,
+                                            modifier = Modifier.fillMaxSize()
+                                        )
+                                    }
+                                    Column(modifier = Modifier.fillMaxSize()) {
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(horizontal = 10.dp, vertical = 5.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                text = project.overlayTitle.ifBlank { project.name.ifBlank { "Floating Window" } },
+                                                color = previewHeaderTextColor,
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                maxLines = 1
+                                            )
+                                            Text(
+                                                text = if (previewBgBitmap != null) "IMG + $editedBgHex" else editedBgHex,
+                                                color = previewHeaderTextColor.copy(alpha = 0.8f),
+                                                fontSize = 9.sp,
+                                                fontFamily = FontFamily.Monospace
+                                            )
+                                        }
+                                        Column(
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .padding(8.dp),
+                                            verticalArrangement = Arrangement.spacedBy(5.dp)
+                                        ) {
+                                            Surface(
+                                                shape = RoundedCornerShape(6.dp),
+                                                color = Color(0xFF1E293B).copy(alpha = 0.88f),
+                                                border = BorderStroke(1.dp, Color(0xFF10B981)),
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .height(26.dp)
+                                            ) {
+                                                Row(
+                                                    modifier = Modifier
+                                                        .fillMaxSize()
+                                                        .padding(horizontal = 8.dp),
+                                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    Text("Sample Toggle #1", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                                    Text("ON", color = Color(0xFF10B981), fontSize = 9.sp, fontWeight = FontWeight.ExtraBold)
+                                                }
+                                            }
+                                            Surface(
+                                                shape = RoundedCornerShape(6.dp),
+                                                color = Color(0xFF2563EB).copy(alpha = 0.9f),
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .height(24.dp)
+                                            ) {
+                                                Box(contentAlignment = Alignment.Center) {
+                                                    Text("Sample Action Button", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // 2. Preset Background Color Swatches
+                    Text(
+                        text = "Preset Background Colors",
+                        color = Color(0xFFCBD5E1),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        bgPresets.chunked(3).forEach { rowPresets ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                rowPresets.forEach { (presetHex, presetName) ->
+                                    val isSelectedPreset = editedBgHex.equals(presetHex, ignoreCase = true) ||
+                                        extractRgb6(editedBgHex).equals(extractRgb6(presetHex), ignoreCase = true)
+                                    val swatchColor = parseHexColorSafe(presetHex, Color.White)
+                                    val slug = presetHex.removePrefix("#").lowercase(Locale.US)
+                                    Surface(
+                                        shape = RoundedCornerShape(10.dp),
+                                        color = if (isSelectedPreset) Color(0xFF1E293B) else Color(0xFF0A1020),
+                                        border = BorderStroke(
+                                            width = if (isSelectedPreset) 1.5.dp else 1.dp,
+                                            color = if (isSelectedPreset) Color(0xFF38BDF8) else Color(0xFF233152)
+                                        ),
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .clickable {
+                                                editedBgHex = presetHex
+                                                bgOpacityPercent = extractAlphaPercent(presetHex)
+                                                onSaveFloatingBackground(presetHex, editedBgImagePath)
+                                            }
+                                            .testTag("bg_preset_$slug")
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 7.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(5.dp)
+                                        ) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(14.dp)
+                                                    .clip(CircleShape)
+                                                    .background(swatchColor)
+                                                    .border(BorderStroke(1.dp, Color(0xFF64748B)), CircleShape)
+                                            )
+                                            Text(
+                                                text = presetName,
+                                                color = Color.White,
+                                                fontSize = 9.sp,
+                                                fontWeight = if (isSelectedPreset) FontWeight.ExtraBold else FontWeight.Medium,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // 3. Opacity / Glass Transparency Slider & Quick Chips
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Window Opacity / Transparency",
+                                color = Color(0xFFCBD5E1),
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = "${bgOpacityPercent.roundToInt()}%",
+                                color = Color(0xFF38BDF8),
+                                fontSize = 11.sp,
+                                fontFamily = FontFamily.Monospace,
+                                fontWeight = FontWeight.ExtraBold
+                            )
+                        }
+                        Slider(
+                            value = bgOpacityPercent,
+                            onValueChange = { newPct ->
+                                bgOpacityPercent = newPct
+                                val nextHex = combineAlphaAndRgb(newPct, editedBgHex)
+                                editedBgHex = nextHex
+                                onSaveFloatingBackground(nextHex, editedBgImagePath)
+                            },
+                            valueRange = 10f..100f,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("floating_bg_opacity_slider")
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            listOf(100, 85, 70, 50, 25).forEach { pct ->
+                                val isActivePct = bgOpacityPercent.roundToInt() == pct
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = if (isActivePct) Color(0xFF5B46F6) else Color(0xFF151F36),
+                                    border = BorderStroke(
+                                        1.dp,
+                                        if (isActivePct) Color(0xFF818CF8) else Color(0xFF283556)
+                                    ),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clickable {
+                                            bgOpacityPercent = pct.toFloat()
+                                            val nextHex = combineAlphaAndRgb(pct.toFloat(), editedBgHex)
+                                            editedBgHex = nextHex
+                                            onSaveFloatingBackground(nextHex, editedBgImagePath)
+                                        }
+                                        .testTag("bg_opacity_chip_$pct")
+                                ) {
+                                    Box(
+                                        modifier = Modifier.padding(vertical = 5.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = "$pct%",
+                                            color = Color.White,
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // 4. Custom Background Image (Gallery Wallpaper)
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text(
+                            text = "Custom Background Image (Wallpaper)",
+                            color = Color(0xFFCBD5E1),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Button(
+                                onClick = {
+                                    bgImagePickerLauncher.launch(
+                                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                                    )
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF5B46F6)),
+                                shape = RoundedCornerShape(10.dp),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .testTag("pick_floating_bg_image_button")
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Image,
+                                    contentDescription = "Select Background Image",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = if (editedBgImagePath.isNotBlank()) "Change BG Image" else "Select BG Image",
+                                    color = Color.White,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+
+                            if (editedBgImagePath.isNotBlank()) {
+                                OutlinedButton(
+                                    onClick = {
+                                        editedBgImagePath = ""
+                                        onSaveFloatingBackground(editedBgHex, "")
+                                    },
+                                    border = BorderStroke(1.dp, Color(0xFFEF4444)),
+                                    shape = RoundedCornerShape(10.dp),
+                                    modifier = Modifier.testTag("remove_floating_bg_image_button")
+                                ) {
+                                    Text(
+                                        text = "Remove Image",
+                                        color = Color(0xFFF87171),
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // 5. Custom Hex Color Input & Reset Button
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedTextField(
+                            value = editedBgHex,
+                            onValueChange = { next ->
+                                editedBgHex = next
+                                val trimmed = next.trim()
+                                val candidate = if (trimmed.startsWith("#")) trimmed else "#$trimmed"
+                                if (candidate.length == 7 || candidate.length == 9) {
+                                    onSaveFloatingBackground(candidate, editedBgImagePath)
+                                }
+                            },
+                            label = { Text("Custom Background Hex (#RRGGBB / #AARRGGBB)", color = Color(0xFF94A3B8), fontSize = 11.sp) },
+                            singleLine = true,
+                            shape = RoundedCornerShape(12.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedContainerColor = Color(0xFF081329),
+                                unfocusedContainerColor = Color(0xFF081329),
+                                focusedBorderColor = Color(0xFF38BDF8),
+                                unfocusedBorderColor = Color(0xFF1E293B),
+                                focusedTextColor = Color.White,
+                                unfocusedTextColor = Color.White,
+                                cursorColor = Color(0xFF38BDF8)
+                            ),
+                            modifier = Modifier
+                                .weight(1f)
+                                .testTag("floating_bg_hex_input")
+                        )
+
+                        TextButton(
+                            onClick = {
+                                editedBgHex = "#FFFFFF"
+                                editedBgImagePath = ""
+                                bgOpacityPercent = 100f
+                                onSaveFloatingBackground("#FFFFFF", "")
+                            },
+                            modifier = Modifier.testTag("reset_floating_bg_button")
+                        ) {
+                            Text("Reset", color = Color(0xFF38BDF8), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        onSaveFloatingBackground(editedBgHex, editedBgImagePath)
+                        onDismissChangeBackground()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF10B981)),
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier.testTag("save_floating_bg_button")
+                ) {
+                    Text("Save & Apply", color = Color.White, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = onDismissChangeBackground) {
+                    Text("Close", color = Color(0xFF94A3B8))
                 }
             }
         )
@@ -995,6 +1557,41 @@ fun StudioCanvasBuilderScreen(
                     Surface(
                         shape = RoundedCornerShape(10.dp),
                         color = Color(0xFF111C35),
+                        border = BorderStroke(1.dp, Color(0xFF3B82F6)),
+                        modifier = Modifier
+                            .clickable { onOpenChangeBackground() }
+                            .testTag("studio_change_background_button")
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(5.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(12.dp)
+                                    .clip(CircleShape)
+                                    .background(parseHexColorSafe(project.canvasBgColorHex, Color.White))
+                                    .border(BorderStroke(1.dp, Color.White), CircleShape)
+                            )
+                            Icon(
+                                imageVector = Icons.Default.Palette,
+                                contentDescription = "Change Floating Window Background",
+                                tint = Color(0xFF38BDF8),
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Text(
+                                text = "Background",
+                                color = Color.White,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                    }
+
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = Color(0xFF111C35),
                         border = BorderStroke(1.dp, Color(0xFF233863)),
                         modifier = Modifier
                             .clickable { onOpenEditCode() }
@@ -1158,6 +1755,7 @@ fun StudioCanvasBuilderScreen(
                 onResizeCanvas = onResizeCanvas,
                 onToggleAutoFixSize = onToggleAutoFixSize,
                 onOpenEditFloatingPanel = onOpenEditFloatingPanel,
+                onOpenChangeBackground = onOpenChangeBackground,
                 onSaveDesign = { onSaveProjectDesign(selectedComponent) },
                 onTriggerComponentLive = onTriggerComponentLive,
                 onClearCanvas = onClearCanvas,

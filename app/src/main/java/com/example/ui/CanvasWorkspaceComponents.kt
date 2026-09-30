@@ -36,6 +36,7 @@ import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Input
 import androidx.compose.material.icons.filled.LinearScale
 import androidx.compose.material.icons.filled.Link
+import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.SmartButton
@@ -190,6 +191,7 @@ fun SketchwareStudioSplitWorkspace(
     onResizeCanvas: (Int, Int) -> Unit,
     onToggleAutoFixSize: () -> Unit,
     onOpenEditFloatingPanel: () -> Unit,
+    onOpenChangeBackground: () -> Unit = {},
     onSaveDesign: () -> Unit,
     onTriggerComponentLive: (CanvasComponentEntity, String?) -> Unit,
     onClearCanvas: () -> Unit,
@@ -216,6 +218,7 @@ fun SketchwareStudioSplitWorkspace(
             },
             onResizeCanvas = onResizeCanvas,
             onOpenEditFloatingPanel = onOpenEditFloatingPanel,
+            onOpenChangeBackground = onOpenChangeBackground,
             onTriggerComponent = { comp, nextVal ->
                 onTriggerComponentLive(comp, nextVal)
             },
@@ -557,6 +560,7 @@ fun InteractiveOverlayCanvas(
     onMoveComponent: (Long, Int, Int) -> Unit,
     onResizeCanvas: (Int, Int) -> Unit = { _, _ -> },
     onOpenEditFloatingPanel: () -> Unit = {},
+    onOpenChangeBackground: () -> Unit = {},
     onTriggerComponent: (CanvasComponentEntity, String) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -568,6 +572,13 @@ fun InteractiveOverlayCanvas(
     val floatingLogoBitmap = remember(activeLogoPath) {
         if (activeLogoPath.isNotBlank()) {
             val file = File(activeLogoPath)
+            if (file.exists()) BitmapFactory.decodeFile(file.absolutePath)?.asImageBitmap() else null
+        } else null
+    }
+
+    val canvasBgBitmap = remember(project.canvasBgImagePath) {
+        if (project.canvasBgImagePath.isNotBlank()) {
+            val file = File(project.canvasBgImagePath)
             if (file.exists()) BitmapFactory.decodeFile(file.absolutePath)?.asImageBitmap() else null
         } else null
     }
@@ -637,12 +648,35 @@ fun InteractiveOverlayCanvas(
                         fontWeight = FontWeight.SemiBold
                     )
 
-                    Text(
-                        text = "main.xml",
-                        color = Color(0xFF94A3B8),
-                        fontSize = 10.sp,
-                        fontFamily = FontFamily.Monospace
-                    )
+                    Surface(
+                        shape = RoundedCornerShape(6.dp),
+                        color = Color(0xFF15203B),
+                        border = BorderStroke(1.dp, Color(0xFF283B66)),
+                        modifier = Modifier
+                            .clickable { onOpenChangeBackground() }
+                            .testTag("phone_status_bg_chip")
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(8.dp)
+                                    .clip(CircleShape)
+                                    .background(canvasBg)
+                                    .border(BorderStroke(0.5.dp, Color.White), CircleShape)
+                            )
+                            Text(
+                                text = if (canvasBgBitmap != null) "BG: IMG" else "BG: ${project.canvasBgColorHex}",
+                                color = Color(0xFFCBD5E1),
+                                fontSize = 9.sp,
+                                fontFamily = FontFamily.Monospace,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
                 }
 
                 // Simulated Phone Screen Workspace Area
@@ -658,6 +692,12 @@ fun InteractiveOverlayCanvas(
                     contentAlignment = Alignment.Center
                 ) {
                     if (isCollapsedToGoalBubble) {
+                        val isDarkBubbleBg = remember(project.canvasBgColorHex, canvasBgBitmap) {
+                            canvasBgBitmap != null ||
+                                (canvasBg.red * 0.299f + canvasBg.green * 0.587f + canvasBg.blue * 0.114f) < 0.55f ||
+                                canvasBg.alpha < 0.65f
+                        }
+                        val bubbleContentColor = if (isDarkBubbleBg) Color.White else Color(0xFF0F172A)
                         // Minimized Goal Bubble Preview (with Logo or Panel Name)
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
@@ -667,12 +707,8 @@ fun InteractiveOverlayCanvas(
                                 modifier = Modifier
                                     .size(70.dp)
                                     .clip(CircleShape)
-                                    .background(
-                                        Brush.linearGradient(
-                                            colors = listOf(Color(0xFF4F46E5), Color(0xFF2563EB))
-                                        )
-                                    )
-                                    .border(BorderStroke(2.5.dp, Color.White), CircleShape)
+                                    .background(canvasBg)
+                                    .border(BorderStroke(2.dp, bubbleContentColor.copy(alpha = 0.7f)), CircleShape)
                                     .clickable { isCollapsedToGoalBubble = false }
                                     .testTag("canvas_minimized_goal_bubble"),
                                 contentAlignment = Alignment.Center
@@ -689,7 +725,7 @@ fun InteractiveOverlayCanvas(
                                 } else {
                                     Text(
                                         text = resolvedPanelTitle,
-                                        color = Color.White,
+                                        color = bubbleContentColor,
                                         fontSize = 10.sp,
                                         fontWeight = FontWeight.ExtraBold,
                                         textAlign = TextAlign.Center,
@@ -706,85 +742,124 @@ fun InteractiveOverlayCanvas(
                             )
                         }
                     } else {
-                        // Active Floating Panel Card inside Phone Screen
-                        Card(
-                            shape = RoundedCornerShape(16.dp),
-                            colors = CardDefaults.cardColors(containerColor = canvasBg),
-                            border = BorderStroke(2.dp, Color(0xFF4F46E5)),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 12.dp),
+                        val isDarkBg = remember(project.canvasBgColorHex, canvasBgBitmap) {
+                            canvasBgBitmap != null ||
+                                (canvasBg.red * 0.299f + canvasBg.green * 0.587f + canvasBg.blue * 0.114f) < 0.55f ||
+                                canvasBg.alpha < 0.65f
+                        }
+                        val headerTextColor = if (isDarkBg) Color.White else Color(0xFF0F172A)
+
+                        // Active Floating Panel inside Phone Screen — background covers 100% of the floating window area
+                        Box(
                             modifier = Modifier
                                 .size(
                                     width = dragCanvasWidthDp.dp.coerceIn(180.dp, 340.dp),
                                     height = dragCanvasHeightDp.dp.coerceIn(180.dp, 480.dp)
                                 )
+                                .clip(RoundedCornerShape(16.dp))
+                                .background(canvasBg)
                                 .testTag("overlay_canvas_window")
                         ) {
-                            Box(modifier = Modifier.fillMaxSize()) {
-                                Column(modifier = Modifier.fillMaxSize()) {
-                                    // Floating Window Gradient Header Bar (Clickable to edit Name & Image)
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .background(
-                                                Brush.horizontalGradient(
-                                                    colors = listOf(Color(0xFF4F46E5), Color(0xFF2563EB))
-                                                )
-                                            )
-                                            .clickable { onOpenEditFloatingPanel() }
-                                            .padding(horizontal = 10.dp, vertical = 8.dp)
-                                            .testTag("floating_panel_header_bar"),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Row(
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                            modifier = Modifier.weight(1f)
-                                        ) {
-                                            Box(
-                                                modifier = Modifier
-                                                    .size(24.dp)
-                                                    .clip(CircleShape)
-                                                    .background(Color(0xFF1E3A8A))
-                                                    .border(BorderStroke(1.dp, Color.White), CircleShape)
-                                                    .clickable { onOpenEditFloatingPanel() }
-                                                    .testTag("floating_panel_header_logo"),
-                                                contentAlignment = Alignment.Center
-                                            ) {
-                                                if (floatingLogoBitmap != null) {
-                                                    Image(
-                                                        bitmap = floatingLogoBitmap,
-                                                        contentDescription = "Floating Panel Logo",
-                                                        contentScale = ContentScale.Crop,
-                                                        modifier = Modifier
-                                                            .fillMaxSize()
-                                                            .clip(CircleShape)
-                                                    )
-                                                } else {
-                                                    Icon(
-                                                        imageVector = Icons.Default.Edit,
-                                                        contentDescription = "Customize Panel Header",
-                                                        tint = Color.White,
-                                                        modifier = Modifier.size(12.dp)
-                                                    )
-                                                }
-                                            }
+                            if (canvasBgBitmap != null) {
+                                Image(
+                                    bitmap = canvasBgBitmap,
+                                    contentDescription = "Floating Window Background Image",
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .clip(RoundedCornerShape(16.dp))
+                                )
+                            }
 
-                                            Text(
-                                                text = resolvedPanelTitle,
-                                                color = Color.White,
-                                                fontSize = 13.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis,
-                                                modifier = Modifier.weight(1f, fill = false)
+                            Column(modifier = Modifier.fillMaxSize()) {
+                                // Floating Window Header Bar (Transparent so background covers whole floating window)
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable { onOpenEditFloatingPanel() }
+                                        .padding(horizontal = 10.dp, vertical = 8.dp)
+                                        .testTag("floating_panel_header_bar"),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(24.dp)
+                                                .clip(CircleShape)
+                                                .background(
+                                                    if (isDarkBg) Color.White.copy(alpha = 0.16f)
+                                                    else Color.Black.copy(alpha = 0.08f)
+                                                )
+                                                .border(BorderStroke(1.dp, headerTextColor.copy(alpha = 0.7f)), CircleShape)
+                                                .clickable { onOpenEditFloatingPanel() }
+                                                .testTag("floating_panel_header_logo"),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            if (floatingLogoBitmap != null) {
+                                                Image(
+                                                    bitmap = floatingLogoBitmap,
+                                                    contentDescription = "Floating Panel Logo",
+                                                    contentScale = ContentScale.Crop,
+                                                    modifier = Modifier
+                                                        .fillMaxSize()
+                                                        .clip(CircleShape)
+                                                )
+                                            } else {
+                                                Icon(
+                                                    imageVector = Icons.Default.Edit,
+                                                    contentDescription = "Customize Panel Header",
+                                                    tint = headerTextColor,
+                                                    modifier = Modifier.size(12.dp)
+                                                )
+                                            }
+                                        }
+
+                                        Text(
+                                            text = resolvedPanelTitle,
+                                            color = headerTextColor,
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                            modifier = Modifier.weight(1f, fill = false)
+                                        )
+                                    }
+
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        // Quick Change Floating Window Background button on Header Bar
+                                        Box(
+                                            modifier = Modifier
+                                                .size(22.dp)
+                                                .clip(CircleShape)
+                                                .background(
+                                                    if (isDarkBg) Color.White.copy(alpha = 0.18f)
+                                                    else Color.Black.copy(alpha = 0.08f)
+                                                )
+                                                .border(BorderStroke(1.dp, headerTextColor.copy(alpha = 0.6f)), CircleShape)
+                                                .clickable { onOpenChangeBackground() }
+                                                .testTag("floating_panel_bg_button"),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Palette,
+                                                contentDescription = "Change Floating Window Background",
+                                                tint = headerTextColor,
+                                                modifier = Modifier.size(12.dp)
                                             )
                                         }
 
                                         // Minimize to Goal Bubble button ('✕')
                                         Text(
                                             text = "✕",
-                                            color = Color.White,
+                                            color = headerTextColor,
                                             fontSize = 14.sp,
                                             fontWeight = FontWeight.Bold,
                                             modifier = Modifier
@@ -793,10 +868,11 @@ fun InteractiveOverlayCanvas(
                                                 .testTag("floating_panel_collapse_button")
                                         )
                                     }
+                                }
 
-                                    // Widget Canvas Area inside Floating Panel
-                                    Box(modifier = Modifier.fillMaxSize()) {
-                                        if (components.isEmpty()) {
+                                // Widget Canvas Area inside Floating Panel
+                                Box(modifier = Modifier.fillMaxSize()) {
+                                    if (components.isEmpty()) {
                                             Column(
                                                 modifier = Modifier
                                                     .fillMaxSize()
@@ -806,17 +882,45 @@ fun InteractiveOverlayCanvas(
                                             ) {
                                                 Text(
                                                     text = "Empty Floating Panel",
-                                                    color = Color(0xFF475569),
+                                                    color = if (isDarkBg) Color(0xFFE2E8F0) else Color(0xFF475569),
                                                     fontSize = 12.sp,
                                                     fontWeight = FontWeight.Bold
                                                 )
                                                 Spacer(Modifier.height(4.dp))
                                                 Text(
                                                     text = "Tap any item on the left palette to add widgets",
-                                                    color = Color(0xFF64748B),
+                                                    color = if (isDarkBg) Color(0xFF94A3B8) else Color(0xFF64748B),
                                                     fontSize = 10.sp,
                                                     textAlign = TextAlign.Center
                                                 )
+                                                Spacer(Modifier.height(10.dp))
+                                                Surface(
+                                                    shape = RoundedCornerShape(8.dp),
+                                                    color = Color(0xFF4F46E5).copy(alpha = 0.9f),
+                                                    border = BorderStroke(1.dp, Color(0xFF818CF8)),
+                                                    modifier = Modifier
+                                                        .clickable { onOpenChangeBackground() }
+                                                        .testTag("empty_canvas_change_bg_button")
+                                                ) {
+                                                    Row(
+                                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                                                        verticalAlignment = Alignment.CenterVertically,
+                                                        horizontalArrangement = Arrangement.spacedBy(5.dp)
+                                                    ) {
+                                                        Icon(
+                                                            imageVector = Icons.Default.Palette,
+                                                            contentDescription = null,
+                                                            tint = Color.White,
+                                                            modifier = Modifier.size(12.dp)
+                                                        )
+                                                        Text(
+                                                            text = "Change Background",
+                                                            color = Color.White,
+                                                            fontSize = 10.sp,
+                                                            fontWeight = FontWeight.Bold
+                                                        )
+                                                    }
+                                                }
                                             }
                                         }
 
@@ -941,8 +1045,11 @@ fun InteractiveOverlayCanvas(
                                     modifier = Modifier
                                         .align(Alignment.BottomEnd)
                                         .size(22.dp)
-                                        .clip(RoundedCornerShape(topStart = 8.dp, bottomEnd = 14.dp))
-                                        .background(Color(0xFF4F46E5).copy(alpha = 0.85f))
+                                        .clip(RoundedCornerShape(topStart = 8.dp, bottomEnd = 16.dp))
+                                        .background(
+                                            if (isDarkBg) Color.White.copy(alpha = 0.16f)
+                                            else Color.Black.copy(alpha = 0.12f)
+                                        )
                                         .pointerInput(project.id) {
                                             detectDragGestures(
                                                 onDragEnd = {
@@ -965,7 +1072,7 @@ fun InteractiveOverlayCanvas(
                                 ) {
                                     Text(
                                         text = "↘",
-                                        color = Color.White,
+                                        color = headerTextColor,
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.ExtraBold
                                     )
@@ -977,7 +1084,6 @@ fun InteractiveOverlayCanvas(
             }
         }
     }
-}
 
 @Composable
 fun AuditHistoryCard(

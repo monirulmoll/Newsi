@@ -42,7 +42,8 @@ data class StudioProjectEntity(
     val defaultTargetFilePath: String = "/storage/emulated/0/StudioTarget/live_state.bin",
     val autoFixSize: Boolean = true,
     val createdAt: Long = System.currentTimeMillis(),
-    val updatedAt: Long = System.currentTimeMillis()
+    val updatedAt: Long = System.currentTimeMillis(),
+    val canvasBgImagePath: String = ""
 )
 
 @Entity(tableName = "canvas_components")
@@ -141,7 +142,7 @@ interface ConfigAuditDao {
         CanvasComponentEntity::class,
         ConfigWriteAuditEntity::class
     ],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {

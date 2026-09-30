@@ -72,6 +72,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
@@ -862,6 +863,11 @@ fun StudioAiGgufGateScreen(
                         label = { Text("Or enter .gguf file path on storage") },
                         placeholder = { Text("/storage/emulated/0/Download/model.gguf") },
                         singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = Color(0xFF0F172A),
+                            unfocusedTextColor = Color(0xFF0F172A),
+                            cursorColor = Color(0xFF4F46E5)
+                        ),
                         modifier = Modifier
                             .fillMaxWidth()
                             .testTag("manual_gguf_path_input")
@@ -1175,6 +1181,15 @@ fun StudioAiWorkspaceScreen(
                                     minLines = 4,
                                     maxLines = 6,
                                     shape = RoundedCornerShape(12.dp),
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedContainerColor = Color(0xFF0A1328),
+                                        unfocusedContainerColor = Color(0xFF0A1328),
+                                        focusedBorderColor = Color(0xFF6366F1),
+                                        unfocusedBorderColor = Color(0xFF222B45),
+                                        focusedTextColor = Color.White,
+                                        unfocusedTextColor = Color.White,
+                                        cursorColor = Color(0xFF38BDF8)
+                                    ),
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .testTag("ai_workspace_prompt_input")
@@ -1368,6 +1383,11 @@ fun StudioAiWorkspaceScreen(
                                         label = { Text("Host") },
                                         placeholder = { Text("192.168.1.100") },
                                         singleLine = true,
+                                        colors = OutlinedTextFieldDefaults.colors(
+                                            focusedTextColor = Color(0xFF0F172A),
+                                            unfocusedTextColor = Color(0xFF0F172A),
+                                            cursorColor = Color(0xFF4F46E5)
+                                        ),
                                         modifier = Modifier
                                             .weight(0.62f)
                                             .testTag("termux_host_input")
@@ -1378,6 +1398,11 @@ fun StudioAiWorkspaceScreen(
                                         label = { Text("Port") },
                                         placeholder = { Text("8080") },
                                         singleLine = true,
+                                        colors = OutlinedTextFieldDefaults.colors(
+                                            focusedTextColor = Color(0xFF0F172A),
+                                            unfocusedTextColor = Color(0xFF0F172A),
+                                            cursorColor = Color(0xFF4F46E5)
+                                        ),
                                         modifier = Modifier
                                             .weight(0.38f)
                                             .testTag("termux_port_input")
@@ -1390,6 +1415,11 @@ fun StudioAiWorkspaceScreen(
                                     label = { Text("URL") },
                                     placeholder = { Text("http://192.168.1.100:8080") },
                                     singleLine = true,
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedTextColor = Color(0xFF0F172A),
+                                        unfocusedTextColor = Color(0xFF0F172A),
+                                        cursorColor = Color(0xFF4F46E5)
+                                    ),
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .testTag("termux_url_input")

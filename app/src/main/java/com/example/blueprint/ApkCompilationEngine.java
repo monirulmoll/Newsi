@@ -166,11 +166,12 @@ public final class ApkCompilationEngine {
         String compiledAppName = project.getName() != null && !project.getName().trim().isEmpty() ? project.getName().trim() : " ";
         String customAppLogoPath = project.getAppLogoPath() != null ? project.getAppLogoPath().trim() : "";
         String string = customFloatingLogoPath = project.getFloatingLogoPath() != null ? project.getFloatingLogoPath().trim() : "";
+        String customCanvasBgImagePath = project.getCanvasBgImagePath() != null ? project.getCanvasBgImagePath().trim() : "";
         if (baseApkFile != null && baseApkFile.exists() && baseApkFile.length() > 100000L) {
             File unsignedMergedApk = new File(workDir, "unsigned_merged.apk");
             File signedTempApk = new File(workDir, "signed_output.apk");
             try {
-                ApkCompilationEngine.buildAlignedUnsignedApkFromBase(baseApkFile, unsignedMergedApk, blueprintFiles, components, compiledPackageName, compiledAppName, customAppLogoPath, customFloatingLogoPath);
+                ApkCompilationEngine.buildAlignedUnsignedApkFromBase(baseApkFile, unsignedMergedApk, blueprintFiles, components, compiledPackageName, compiledAppName, customAppLogoPath, customFloatingLogoPath, customCanvasBgImagePath);
                 boolean signedOk = ApkCompilationEngine.signApkWithDebugKey(context, unsignedMergedApk, signedTempApk);
                 if (signedOk && signedTempApk.exists() && signedTempApk.length() > 100000L) {
                     ApkCompilationEngine.copyFile(signedTempApk, outputApkFile);
@@ -197,7 +198,7 @@ public final class ApkCompilationEngine {
         return new CompilationResult(outputApkFile, blueprintZipFile, serviceJavaPreview, blueprintFiles, outputApkFile.length(), compiledPackageName, compiledAppName.trim());
     }
 
-    private static void buildAlignedUnsignedApkFromBase(@NonNull File baseApkFile, @NonNull File outUnsignedApk, @NonNull Map<String, String> blueprintFiles, @NonNull List<CanvasComponentEntity> components, @NonNull String compiledPackageName, @NonNull String compiledAppName, @NonNull String customAppLogoPath, @NonNull String customFloatingLogoPath) throws IOException {
+    private static void buildAlignedUnsignedApkFromBase(@NonNull File baseApkFile, @NonNull File outUnsignedApk, @NonNull Map<String, String> blueprintFiles, @NonNull List<CanvasComponentEntity> components, @NonNull String compiledPackageName, @NonNull String compiledAppName, @NonNull String customAppLogoPath, @NonNull String customFloatingLogoPath, @NonNull String customCanvasBgImagePath) throws IOException {
         byte[] replacementIconPng = ApkCompilationEngine.buildLauncherIconPngBytes(customAppLogoPath);
         HashSet<String> writtenEntries = new HashSet<String>();
         try (ZipFile baseZip = new ZipFile(baseApkFile);
@@ -230,7 +231,7 @@ public final class ApkCompilationEngine {
                 byte[] entryBytes;
                 ZipEntry entry = entries.nextElement();
                 String name = entry.getName();
-                if (writtenEntries.contains(name) || ApkCompilationEngine.isSignatureFile(name) || "assets/overlay_config.json".equals(name) || "assets/app_logo.png".equals(name) || "assets/floating_logo.png".equals(name) || name.startsWith("assets/generated_project/") || name.startsWith("assets/images/img_") || name.startsWith("assets/sounds/on_snd_") || name.startsWith("assets/sounds/off_snd_") || name.startsWith("src/")) continue;
+                if (writtenEntries.contains(name) || ApkCompilationEngine.isSignatureFile(name) || "assets/overlay_config.json".equals(name) || "assets/app_logo.png".equals(name) || "assets/floating_logo.png".equals(name) || "assets/canvas_bg.png".equals(name) || name.startsWith("assets/generated_project/") || name.startsWith("assets/images/img_") || name.startsWith("assets/sounds/on_snd_") || name.startsWith("assets/sounds/off_snd_") || name.startsWith("src/")) continue;
                 try (InputStream is = baseZip.getInputStream(entry);){
                     entryBytes = ApkCompilationEngine.readAllBytes(is);
                 }
@@ -255,6 +256,9 @@ public final class ApkCompilationEngine {
             }
             if (!customFloatingLogoPath.isEmpty() && writtenEntries.add("assets/floating_logo.png")) {
                 ApkCompilationEngine.injectCustomFileIfPresent(zos, customFloatingLogoPath, "assets/floating_logo.png");
+            }
+            if (!customCanvasBgImagePath.isEmpty() && writtenEntries.add("assets/canvas_bg.png")) {
+                ApkCompilationEngine.injectCustomFileIfPresent(zos, customCanvasBgImagePath, "assets/canvas_bg.png");
             }
             for (Map.Entry<String, String> fileEntry : blueprintFiles.entrySet()) {
                 String relPath = fileEntry.getKey();
@@ -1058,6 +1062,7 @@ public final class ApkCompilationEngine {
     private static String generateOverlayConfigJson(@NonNull StudioProjectEntity project, @NonNull List<CanvasComponentEntity> components) {
         boolean hasLogo = project.getAppLogoPath() != null && !project.getAppLogoPath().trim().isEmpty() && new File(project.getAppLogoPath().trim()).exists();
         boolean hasFloatingLogo = project.getFloatingLogoPath() != null && !project.getFloatingLogoPath().trim().isEmpty() && new File(project.getFloatingLogoPath().trim()).exists();
+        boolean hasCanvasBgImg = project.getCanvasBgImagePath() != null && !project.getCanvasBgImagePath().trim().isEmpty() && new File(project.getCanvasBgImagePath().trim()).exists();
         StringBuilder sb = new StringBuilder();
         sb.append("{\n");
         sb.append("  \"standaloneCompiledApp\": true,\n");
@@ -1071,6 +1076,7 @@ public final class ApkCompilationEngine {
         sb.append("  \"overlayTitle\": \"").append(ApkCompilationEngine.escapeJava(project.getOverlayTitle())).append("\",\n");
         sb.append("  \"appLogoAsset\": \"").append(hasLogo ? "app_logo.png" : "").append("\",\n");
         sb.append("  \"floatingLogoAsset\": \"").append(hasFloatingLogo ? "floating_logo.png" : "").append("\",\n");
+        sb.append("  \"canvasBgImageAsset\": \"").append(hasCanvasBgImg ? "canvas_bg.png" : "").append("\",\n");
         sb.append("  \"canvasWidthDp\": ").append(project.getCanvasWidthDp()).append(",\n");
         sb.append("  \"canvasHeightDp\": ").append(project.getCanvasHeightDp()).append(",\n");
         sb.append("  \"canvasBgColorHex\": \"").append(ApkCompilationEngine.escapeJava(project.getCanvasBgColorHex())).append("\",\n");

@@ -465,12 +465,8 @@ fun LauncherScreen(
         }
     }
 
-    BackHandler {
-        if (currentSubScreen != AppStudioSubScreen.HOME) {
-            currentSubScreen = AppStudioSubScreen.HOME
-        } else {
-            onBackToWelcome()
-        }
+    BackHandler(enabled = currentSubScreen != AppStudioSubScreen.HOME) {
+        currentSubScreen = AppStudioSubScreen.HOME
     }
 
     if (showImportUrlDialog != null) {

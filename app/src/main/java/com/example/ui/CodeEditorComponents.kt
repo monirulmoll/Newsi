@@ -89,6 +89,7 @@ object GeneratedOverlayDescriptor {
     const val OVERLAY_TITLE = "${project.overlayTitle}"
     const val CANVAS_WIDTH_DP = ${project.canvasWidthDp}
     const val CANVAS_HEIGHT_DP = ${project.canvasHeightDp}
+    const val CANVAS_BG_COLOR_HEX = "${project.canvasBgColorHex}"
     const val TARGET_FILE_PATH = "${project.defaultTargetFilePath}"
 
     fun describeWidgets(context: Context): List<String> = listOf(
@@ -144,6 +145,10 @@ class FloatingOverlayService : Service() {
             .find(canvasSource)?.groupValues?.getOrNull(1)?.toIntOrNull()
             ?: originalProject.canvasHeightDp
 
+        val bgHex = Regex("""const\s+val\s+CANVAS_BG_COLOR_HEX\s*=\s*"([^"]*)"""")
+            .find(canvasSource)?.groupValues?.getOrNull(1)?.trim()
+            ?.takeIf { it.isNotEmpty() } ?: originalProject.canvasBgColorHex
+
         val targetPath = Regex("""const\s+val\s+TARGET_FILE_PATH\s*=\s*"([^"]*)"""")
             .find(canvasSource)?.groupValues?.getOrNull(1)?.trim()
             ?.takeIf { it.isNotEmpty() } ?: originalProject.defaultTargetFilePath
@@ -154,6 +159,7 @@ class FloatingOverlayService : Service() {
             overlayTitle = overlayTitle,
             canvasWidthDp = widthDp.coerceIn(170, 420),
             canvasHeightDp = heightDp.coerceIn(160, 620),
+            canvasBgColorHex = bgHex,
             defaultTargetFilePath = targetPath,
             updatedAt = System.currentTimeMillis()
         )
@@ -224,11 +230,11 @@ fun CodeEditorScreen(
 ) {
     BackHandler { onClose() }
 
-    var workingFiles by remember(files) {
+    var workingFiles by remember(project.id) {
         mutableStateOf(files.toMutableMap())
     }
-    val fileKeys = remember(workingFiles.keys.toList()) { workingFiles.keys.toList() }
-    var activeKey by remember(fileKeys) {
+    val fileKeys = remember(project.id) { files.keys.toList() }
+    var activeKey by remember(project.id) {
         mutableStateOf(fileKeys.firstOrNull().orEmpty())
     }
     var editorText by remember(activeKey) {
@@ -371,11 +377,6 @@ fun CodeEditorScreen(
                     value = editorText,
                     onValueChange = {
                         editorText = it
-                        if (activeKey.isNotEmpty()) {
-                            workingFiles = workingFiles.toMutableMap().apply {
-                                put(activeKey, it)
-                            }
-                        }
                     },
                     textStyle = TextStyle(
                         color = Color(0xFFE2E8F0),

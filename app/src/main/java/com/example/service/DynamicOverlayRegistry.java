@@ -29,6 +29,7 @@ public class DynamicOverlayRegistry {
     private static volatile int activeCanvasWidthDp = 310;
     private static volatile int activeCanvasHeightDp = 380;
     private static volatile String activeCanvasBgHex = "#FFFFFF";
+    private static volatile String activeCanvasBgImagePath = "";
     private static volatile boolean activeAutoFixSize = false;
     private static volatile boolean bundledStandaloneLoaded = false;
     private static final List<OverlayItemSpec> activeItems = Collections.synchronizedList(new ArrayList());
@@ -42,11 +43,16 @@ public class DynamicOverlayRegistry {
     }
 
     public static synchronized void updateActiveOverlay(String title, String floatingLogoPath, int widthDp, int heightDp, String bgHex, boolean autoFixSize, List<OverlayItemSpec> items) {
+        DynamicOverlayRegistry.updateActiveOverlay(title, floatingLogoPath, widthDp, heightDp, bgHex, activeCanvasBgImagePath, autoFixSize, items);
+    }
+
+    public static synchronized void updateActiveOverlay(String title, String floatingLogoPath, int widthDp, int heightDp, String bgHex, String bgImagePath, boolean autoFixSize, List<OverlayItemSpec> items) {
         activeOverlayTitle = title != null ? title : "";
         activeFloatingLogoPath = floatingLogoPath != null ? floatingLogoPath : "";
         activeCanvasWidthDp = Math.max(180, widthDp);
         activeCanvasHeightDp = Math.max(160, heightDp);
         activeCanvasBgHex = bgHex != null && !bgHex.trim().isEmpty() ? bgHex : "#FFFFFF";
+        activeCanvasBgImagePath = bgImagePath != null ? bgImagePath.trim() : "";
         activeAutoFixSize = autoFixSize;
         if (items != null) {
             for (OverlayItemSpec incoming : items) {
@@ -125,6 +131,14 @@ public class DynamicOverlayRegistry {
         return activeCanvasBgHex;
     }
 
+    public static synchronized String getActiveCanvasBgImagePath() {
+        return activeCanvasBgImagePath;
+    }
+
+    public static synchronized void setActiveCanvasBgImagePath(String bgImagePath) {
+        activeCanvasBgImagePath = bgImagePath != null ? bgImagePath.trim() : "";
+    }
+
     public static synchronized List<OverlayItemSpec> getActiveItems() {
         return new ArrayList<OverlayItemSpec>(activeItems);
     }
@@ -141,7 +155,7 @@ public class DynamicOverlayRegistry {
     }
 
     public static synchronized boolean loadFromBundledAssetsIfEmpty(Context context) {
-        if (bundledStandaloneLoaded || !activeItems.isEmpty() || context == null) {
+        if (!activeItems.isEmpty() || context == null) {
             return bundledStandaloneLoaded || !activeItems.isEmpty();
         }
         try (InputStream is = context.getAssets().open("overlay_config.json")) {
@@ -156,11 +170,18 @@ public class DynamicOverlayRegistry {
             activeProjectName = root.optString("projectName", "");
             activePackageName = root.optString("packageName", context.getPackageName());
             String title = root.optString("overlayTitle", "");
+            if (title == null || title.trim().isEmpty()) {
+                title = activeProjectName;
+            }
             activeAppLogoPath = DynamicOverlayRegistry.extractBundledAssetIfPresent(context, root.optString("appLogoAsset", ""), "app_logo.png");
             String floatingLogo = DynamicOverlayRegistry.extractBundledAssetIfPresent(context, root.optString("floatingLogoAsset", ""), "floating_logo.png");
+            if (floatingLogo == null || floatingLogo.trim().isEmpty()) {
+                floatingLogo = activeAppLogoPath;
+            }
             int widthDp = root.optInt("canvasWidthDp", 216);
             int heightDp = root.optInt("canvasHeightDp", 290);
             String bgHex = root.optString("canvasBgColorHex", "#FFFFFF");
+            String bgImage = DynamicOverlayRegistry.extractBundledAssetIfPresent(context, root.optString("canvasBgImageAsset", ""), "canvas_bg.png");
             boolean autoFix = root.optBoolean("autoFixSize", false);
             JSONArray arr = root.optJSONArray("components");
             ArrayList<OverlayItemSpec> parsed = new ArrayList<OverlayItemSpec>();
@@ -192,7 +213,7 @@ public class DynamicOverlayRegistry {
                     parsed.add(spec);
                 }
             }
-            DynamicOverlayRegistry.updateActiveOverlay(title, floatingLogo, widthDp, heightDp, bgHex, autoFix, parsed);
+            DynamicOverlayRegistry.updateActiveOverlay(title, floatingLogo, widthDp, heightDp, bgHex, bgImage, autoFix, parsed);
             bundledStandaloneLoaded = true;
             return true;
         } catch (Exception ignored) {

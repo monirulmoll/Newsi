@@ -115,7 +115,10 @@ extends Service {
     public static final String ACTION_STOP_OVERLAY = "com.example.service.ACTION_STOP_OVERLAY";
     private static final String CHANNEL_ID = "studio_error_overlay_channel";
     private static final int NOTIFICATION_ID = 4102;
+    private static final Object OVERLAY_LOCK = new Object();
     private static volatile boolean running = false;
+    private static View sActiveFloatingRootView = null;
+    private static WindowManager sActiveWindowManager = null;
     private WindowManager windowManager;
     private View floatingRootView;
     private WindowManager.LayoutParams overlayLayoutParams;
@@ -132,13 +135,28 @@ extends Service {
 
     public int onStartCommand(Intent intent, int flags, int startId) {
         if (intent != null && ACTION_STOP_OVERLAY.equals(intent.getAction())) {
+            this.removeSystemOverlayWindow();
+            running = false;
             this.stopSelf();
             return 2;
         }
-        this.startForeground(4102, this.buildForegroundNotification());
+        try {
+            if (Build.VERSION.SDK_INT >= 34) {
+                this.startForeground(4102, this.buildForegroundNotification(), 0x40000000);
+            } else {
+                this.startForeground(4102, this.buildForegroundNotification());
+            }
+        }
+        catch (Throwable ignored) {
+            try {
+                this.startForeground(4102, this.buildForegroundNotification());
+            }
+            catch (Throwable ignored2) {
+                // empty catch block
+            }
+        }
         boolean hasOverlay = Settings.canDrawOverlays((Context)this);
-        boolean hasStorage = LocalConfigStateWriter.hasStoragePermissionGranted((Context)this);
-        if (hasOverlay && hasStorage) {
+        if (hasOverlay) {
             this.removeSystemOverlayWindow();
             this.showDynamicSystemOverlayWindow();
             running = true;
@@ -150,6 +168,11 @@ extends Service {
         return 1;
     }
 
+    private boolean isColorDark(int color) {
+        double luminance = (0.299 * (double)Color.red((int)color) + 0.587 * (double)Color.green((int)color) + 0.114 * (double)Color.blue((int)color)) / 255.0;
+        return luminance < 0.55 || Color.alpha((int)color) < 160;
+    }
+
     @SuppressLint(value={"ClickableViewAccessibility"})
     private void showDynamicSystemOverlayWindow() {
         File lf;
@@ -159,26 +182,57 @@ extends Service {
         this.overlayLayoutParams.gravity = 0x800033;
         this.overlayLayoutParams.x = 32;
         this.overlayLayoutParams.y = 160;
+
+        int resolvedBgColor = this.parseSafeColor(DynamicOverlayRegistry.getActiveCanvasBgHex(), -1);
+        String canvasBgImgPath = DynamicOverlayRegistry.getActiveCanvasBgImagePath();
+        Bitmap bgBmp = null;
+        if (canvasBgImgPath != null && !canvasBgImgPath.trim().isEmpty()) {
+            File bgFile = new File(canvasBgImgPath.trim());
+            if (bgFile.exists()) {
+                bgBmp = BitmapFactory.decodeFile((String)bgFile.getAbsolutePath());
+            }
+        }
+        boolean useLightHeaderContent = bgBmp != null || this.isColorDark(resolvedBgColor);
+        int headerContentColor = useLightHeaderContent ? -1 : Color.parseColor((String)"#0F172A");
+
+        final FrameLayout panelRoot = new FrameLayout((Context)this);
+        GradientDrawable panelBg = new GradientDrawable();
+        panelBg.setColor(resolvedBgColor);
+        panelBg.setCornerRadius((float)this.dpToPx(16));
+        panelRoot.setBackground((Drawable)panelBg);
+        panelRoot.setClipToOutline(true);
+
+        if (bgBmp != null) {
+            ImageView bgIv = new ImageView((Context)this);
+            bgIv.setImageBitmap(bgBmp);
+            bgIv.setScaleType(ImageView.ScaleType.CENTER_CROP);
+            GradientDrawable clipBg = new GradientDrawable();
+            clipBg.setCornerRadius((float)this.dpToPx(16));
+            bgIv.setBackground((Drawable)clipBg);
+            bgIv.setClipToOutline(true);
+            panelRoot.addView((View)bgIv, (ViewGroup.LayoutParams)new FrameLayout.LayoutParams(-1, -1));
+        }
+
         final LinearLayout container = new LinearLayout((Context)this);
         container.setOrientation(1);
-        GradientDrawable panelBg = new GradientDrawable();
-        panelBg.setColor(this.parseSafeColor(DynamicOverlayRegistry.getActiveCanvasBgHex(), -1));
-        panelBg.setCornerRadius((float)this.dpToPx(16));
-        panelBg.setStroke(this.dpToPx(2), Color.parseColor((String)"#3B82F6"));
-        container.setBackground((Drawable)panelBg);
+        container.setBackgroundColor(0);
+
         LinearLayout header = new LinearLayout((Context)this);
         header.setOrientation(0);
         header.setGravity(16);
-        header.setPadding(this.dpToPx(12), this.dpToPx(8), this.dpToPx(8), this.dpToPx(8));
-        GradientDrawable headerBg = new GradientDrawable();
-        headerBg.setColor(Color.parseColor((String)"#2563EB"));
-        float r = this.dpToPx(14);
-        headerBg.setCornerRadii(new float[]{r, r, r, r, 0.0f, 0.0f, 0.0f, 0.0f});
-        header.setBackground((Drawable)headerBg);
+        header.setPadding(this.dpToPx(10), this.dpToPx(8), this.dpToPx(8), this.dpToPx(8));
+        header.setBackgroundColor(0);
+
         List<DynamicOverlayRegistry.OverlayItemSpec> specs = DynamicOverlayRegistry.getActiveItems();
         String activeTitle = DynamicOverlayRegistry.getActiveOverlayTitle();
         String displayTitle = activeTitle != null && !activeTitle.trim().isEmpty() ? activeTitle.trim() : DynamicOverlayRegistry.getActiveProjectName();
+        if (displayTitle == null || displayTitle.trim().isEmpty()) {
+            displayTitle = "Floating Panel";
+        }
         String floatingLogoPath = DynamicOverlayRegistry.getActiveFloatingLogoPath();
+        if (floatingLogoPath == null || floatingLogoPath.trim().isEmpty()) {
+            floatingLogoPath = DynamicOverlayRegistry.getActiveAppLogoPath();
+        }
         Bitmap rawLogoBitmap = null;
         if (floatingLogoPath != null && !floatingLogoPath.trim().isEmpty() && (lf = new File(floatingLogoPath.trim())).exists()) {
             rawLogoBitmap = BitmapFactory.decodeFile((String)lf.getAbsolutePath());
@@ -189,22 +243,36 @@ extends Service {
             LinearLayout.LayoutParams logoLp = new LinearLayout.LayoutParams(this.dpToPx(24), this.dpToPx(24));
             logoLp.rightMargin = this.dpToPx(8);
             header.addView((View)headerLogoIv, (ViewGroup.LayoutParams)logoLp);
+        } else {
+            TextView badgeCircle = new TextView((Context)this);
+            badgeCircle.setText((CharSequence)"\u2726");
+            badgeCircle.setTextColor(headerContentColor);
+            badgeCircle.setTextSize(2, 10.0f);
+            badgeCircle.setGravity(17);
+            GradientDrawable circleDrawable = new GradientDrawable();
+            circleDrawable.setShape(1);
+            circleDrawable.setColor(useLightHeaderContent ? Color.parseColor((String)"#33FFFFFF") : Color.parseColor((String)"#1F0F172A"));
+            circleDrawable.setStroke(this.dpToPx(1), headerContentColor);
+            badgeCircle.setBackground((Drawable)circleDrawable);
+            LinearLayout.LayoutParams logoLp = new LinearLayout.LayoutParams(this.dpToPx(24), this.dpToPx(24));
+            logoLp.rightMargin = this.dpToPx(8);
+            header.addView((View)badgeCircle, (ViewGroup.LayoutParams)logoLp);
         }
         TextView titleTv = new TextView((Context)this);
-        titleTv.setText((CharSequence)(displayTitle != null ? displayTitle : ""));
-        titleTv.setTextColor(-1);
+        titleTv.setText((CharSequence)displayTitle);
+        titleTv.setTextColor(headerContentColor);
         titleTv.setTextSize(2, 13.0f);
         titleTv.setTypeface(Typeface.DEFAULT_BOLD);
         titleTv.setSingleLine(true);
         titleTv.setEllipsize(TextUtils.TruncateAt.END);
         LinearLayout.LayoutParams titleLp = new LinearLayout.LayoutParams(0, -2, 1.0f);
         header.addView((View)titleTv, (ViewGroup.LayoutParams)titleLp);
-        int bubbleSizePx = this.dpToPx(58);
+        int bubbleSizePx = this.dpToPx(64);
         final FrameLayout goalLogoBubble = new FrameLayout((Context)this);
         GradientDrawable bubbleBg = new GradientDrawable();
         bubbleBg.setShape(1);
-        bubbleBg.setColor(Color.parseColor((String)"#2563EB"));
-        bubbleBg.setStroke(this.dpToPx(2), -1);
+        bubbleBg.setColor(resolvedBgColor);
+        bubbleBg.setStroke(this.dpToPx(2), headerContentColor);
         goalLogoBubble.setBackground((Drawable)bubbleBg);
         goalLogoBubble.setVisibility(8);
         if (rawLogoBitmap != null) {
@@ -216,7 +284,7 @@ extends Service {
             TextView bubbleTitleTv = new TextView((Context)this);
             String fallbackBubbleText = displayTitle != null && !displayTitle.trim().isEmpty() ? displayTitle.trim() : "Float";
             bubbleTitleTv.setText((CharSequence)fallbackBubbleText);
-            bubbleTitleTv.setTextColor(-1);
+            bubbleTitleTv.setTextColor(headerContentColor);
             bubbleTitleTv.setTextSize(2, 10.0f);
             bubbleTitleTv.setTypeface(Typeface.DEFAULT_BOLD);
             bubbleTitleTv.setGravity(17);
@@ -227,12 +295,12 @@ extends Service {
         }
         TextView closeBtn = new TextView((Context)this);
         closeBtn.setText((CharSequence)"\u2715");
-        closeBtn.setTextColor(-1);
+        closeBtn.setTextColor(headerContentColor);
         closeBtn.setTextSize(2, 14.0f);
         closeBtn.setPadding(this.dpToPx(10), this.dpToPx(4), this.dpToPx(10), this.dpToPx(4));
         closeBtn.setOnClickListener(v -> {
             this.setOverlayFocusable(false);
-            container.setVisibility(8);
+            panelRoot.setVisibility(8);
             goalLogoBubble.setVisibility(0);
             if (this.floatingRootView != null && this.windowManager != null) {
                 this.windowManager.updateViewLayout(this.floatingRootView, (ViewGroup.LayoutParams)this.overlayLayoutParams);
@@ -320,6 +388,8 @@ extends Service {
         });
         container.addView((View)header, (ViewGroup.LayoutParams)new LinearLayout.LayoutParams(-1, -2));
         container.addView((View)canvasFrame, (ViewGroup.LayoutParams)canvasLp);
+        panelRoot.addView((View)container, (ViewGroup.LayoutParams)new FrameLayout.LayoutParams(-2, -2));
+
         final int bubbleTouchSlop = ViewConfiguration.get((Context)this).getScaledTouchSlop();
         goalLogoBubble.setOnTouchListener(new View.OnTouchListener(){
             private float downRawX;
@@ -356,7 +426,7 @@ extends Service {
                     case 1: {
                         if (!this.wasDragged) {
                             goalLogoBubble.setVisibility(8);
-                            container.setVisibility(0);
+                            panelRoot.setVisibility(0);
                             if (FloatingDashboardService.this.floatingRootView != null && FloatingDashboardService.this.windowManager != null) {
                                 FloatingDashboardService.this.windowManager.updateViewLayout(FloatingDashboardService.this.floatingRootView, (ViewGroup.LayoutParams)FloatingDashboardService.this.overlayLayoutParams);
                             }
@@ -368,10 +438,33 @@ extends Service {
             }
         });
         FrameLayout rootWrapper = new FrameLayout((Context)this);
-        rootWrapper.addView((View)container, (ViewGroup.LayoutParams)new FrameLayout.LayoutParams(-2, -2));
+        rootWrapper.addView((View)panelRoot, (ViewGroup.LayoutParams)new FrameLayout.LayoutParams(-2, -2));
         rootWrapper.addView((View)goalLogoBubble, (ViewGroup.LayoutParams)new FrameLayout.LayoutParams(bubbleSizePx, bubbleSizePx));
-        this.floatingRootView = rootWrapper;
-        this.windowManager.addView(this.floatingRootView, (ViewGroup.LayoutParams)this.overlayLayoutParams);
+        synchronized (OVERLAY_LOCK) {
+            if (sActiveFloatingRootView != null && sActiveWindowManager != null) {
+                try {
+                    sActiveWindowManager.removeViewImmediate(sActiveFloatingRootView);
+                }
+                catch (Throwable ignored) {
+                    try {
+                        sActiveWindowManager.removeView(sActiveFloatingRootView);
+                    }
+                    catch (Throwable ignored2) {
+                    }
+                }
+                sActiveFloatingRootView = null;
+            }
+            this.floatingRootView = rootWrapper;
+            sActiveFloatingRootView = rootWrapper;
+            sActiveWindowManager = this.windowManager;
+            try {
+                if (this.windowManager != null) {
+                    this.windowManager.addView(this.floatingRootView, (ViewGroup.LayoutParams)this.overlayLayoutParams);
+                }
+            }
+            catch (Throwable ignored) {
+            }
+        }
     }
 
     private Bitmap createCircularBitmap(Bitmap src, int sizePx) {
@@ -400,7 +493,8 @@ extends Service {
         int txtColor = this.parseSafeColor(spec.textColorHex, -1);
         GradientDrawable itemBg = new GradientDrawable();
         itemBg.setColor(bgColor);
-        itemBg.setCornerRadius((float)this.dpToPx(10));
+        itemBg.setCornerRadius((float)this.dpToPx(8));
+        itemBg.setStroke(this.dpToPx(1), Color.parseColor((String)"#CBD5E1"));
         switch (type = spec.type != null ? spec.type : "BUTTON") {
             case "TOGGLE": {
                 LinearLayout row = new LinearLayout((Context)this);
@@ -639,8 +733,10 @@ extends Service {
                 TextView tv = new TextView((Context)this);
                 tv.setText((CharSequence)spec.label);
                 tv.setTextColor(txtColor);
-                tv.setTextSize(2, 13.0f);
-                tv.setGravity(17);
+                tv.setTextSize(2, 12.0f);
+                tv.setTypeface(Typeface.DEFAULT_BOLD);
+                tv.setGravity(16);
+                tv.setPadding(this.dpToPx(8), this.dpToPx(4), this.dpToPx(8), this.dpToPx(4));
                 tv.setBackground((Drawable)itemBg);
                 boolean[] isTxtOn = new boolean[]{"1".equals(spec.currentValue) || "true".equalsIgnoreCase(spec.currentValue)};
                 tv.setOnClickListener(v -> {
@@ -769,14 +865,36 @@ extends Service {
     }
 
     private void removeSystemOverlayWindow() {
-        if (this.floatingRootView != null && this.windowManager != null) {
-            try {
-                this.windowManager.removeView(this.floatingRootView);
+        synchronized (OVERLAY_LOCK) {
+            if (this.floatingRootView != null && this.windowManager != null) {
+                try {
+                    this.windowManager.removeViewImmediate(this.floatingRootView);
+                }
+                catch (Throwable ignored) {
+                    try {
+                        this.windowManager.removeView(this.floatingRootView);
+                    }
+                    catch (Throwable ignored2) {
+                    }
+                }
+                if (sActiveFloatingRootView == this.floatingRootView) {
+                    sActiveFloatingRootView = null;
+                }
+                this.floatingRootView = null;
             }
-            catch (Exception exception) {
-                // empty catch block
+            if (sActiveFloatingRootView != null && sActiveWindowManager != null) {
+                try {
+                    sActiveWindowManager.removeViewImmediate(sActiveFloatingRootView);
+                }
+                catch (Throwable ignored) {
+                    try {
+                        sActiveWindowManager.removeView(sActiveFloatingRootView);
+                    }
+                    catch (Throwable ignored2) {
+                    }
+                }
+                sActiveFloatingRootView = null;
             }
-            this.floatingRootView = null;
         }
     }
 

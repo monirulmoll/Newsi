@@ -90,15 +90,23 @@ class ExampleRobolectricTest {
     @Test
     fun `verify blueprint generation and signed apk compilation engine`() {
         val context = ApplicationProvider.getApplicationContext<Context>()
+        val customBgImg = File(context.filesDir, "test_floating_bg.png").apply {
+            val bmp = android.graphics.Bitmap.createBitmap(32, 32, android.graphics.Bitmap.Config.ARGB_8888)
+            bmp.eraseColor(android.graphics.Color.parseColor("#0F172A"))
+            java.io.FileOutputStream(this).use { out ->
+                bmp.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, out)
+            }
+        }
         val project = com.example.data.StudioProjectEntity(
             id = 1L,
             name = "My Floating Utility",
             overlayTitle = "Floating Mod Panel",
             canvasWidthDp = 216,
             canvasHeightDp = 290,
-            canvasBgColorHex = "#1E293B",
+            canvasBgColorHex = "#CC0F172A",
             defaultTargetFilePath = File(context.filesDir, "overlay_state.bin").absolutePath,
-            autoFixSize = true
+            autoFixSize = true,
+            canvasBgImagePath = customBgImg.absolutePath
         )
         val components = listOf(
             CanvasComponentEntity(
@@ -164,11 +172,13 @@ class ExampleRobolectricTest {
             val arsc = zip.getEntry("resources.arsc")
             val dex = zip.getEntry("classes.dex")
             val config = zip.getEntry("assets/overlay_config.json")
+            val canvasBgEntry = zip.getEntry("assets/canvas_bg.png")
             val genService = zip.getEntry("assets/generated_project/src/main/java/com/floating/modmenu/FloatingModMenuService.java")
             val genPatcher = zip.getEntry("assets/generated_project/src/main/java/com/floating/modmenu/BinaryOffsetPatcher.java")
             assertTrue("resources.arsc must exist and be STORED (0)", arsc != null && arsc.method == java.util.zip.ZipEntry.STORED)
             assertTrue("classes.dex must exist in compiled APK", dex != null)
             assertTrue("assets/overlay_config.json must be injected in signed APK", config != null)
+            assertTrue("assets/canvas_bg.png must be bundled in signed APK", canvasBgEntry != null)
             assertTrue("Generated FloatingModMenuService.java must be packaged in signed APK", genService != null)
             assertTrue("Generated BinaryOffsetPatcher.java must be packaged in signed APK", genPatcher != null)
         }

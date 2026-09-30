@@ -105,7 +105,6 @@ fun PropertyInspectorBottomDock(
         onOpenEditFloatingPanel = onOpenEditFloatingPanel,
         onSaveComponent = { updated ->
             onUpdateComponent(updated)
-            onSaveDesign(updated)
         },
         onDuplicateComponent = { onDuplicateComponent() },
         onDeleteComponent = { onDeleteComponent() },
@@ -130,21 +129,21 @@ fun ComponentPropertyInspectorSheet(
     onClose: () -> Unit
 ) {
     var activeTab by remember { mutableStateOf("General") }
-    var label by remember(component.id, component.label) { mutableStateOf(component.label) }
+    var label by remember(component.id) { mutableStateOf(component.label) }
     var customSourceFilePath by remember(component.id, component.customImagePath) {
         mutableStateOf(component.customImagePath)
     }
-    var posX by remember(component.id, component.posXDp) { mutableStateOf(component.posXDp.toString()) }
-    var posY by remember(component.id, component.posYDp) { mutableStateOf(component.posYDp.toString()) }
-    var widthDp by remember(component.id, component.widthDp) { mutableStateOf(component.widthDp.toString()) }
-    var heightDp by remember(component.id, component.heightDp) { mutableStateOf(component.heightDp.toString()) }
-    var byteOffset by remember(component.id, component.byteOffsetHex) { mutableStateOf(component.byteOffsetHex) }
-    var onPayload by remember(component.id, component.onPayloadHex) { mutableStateOf(component.onPayloadHex) }
-    var offPayload by remember(component.id, component.offPayloadHex) { mutableStateOf(component.offPayloadHex) }
-    var bgHex by remember(component.id, component.bgColorHex) { mutableStateOf(component.bgColorHex) }
-    var textHex by remember(component.id, component.textColorHex) { mutableStateOf(component.textColorHex) }
-    var currentValue by remember(component.id, component.currentValue) { mutableStateOf(component.currentValue) }
-    var targetFile by remember(component.id, component.targetFilePath) { mutableStateOf(component.targetFilePath) }
+    var posX by remember(component.id) { mutableStateOf(component.posXDp.toString()) }
+    var posY by remember(component.id) { mutableStateOf(component.posYDp.toString()) }
+    var widthDp by remember(component.id) { mutableStateOf(component.widthDp.toString()) }
+    var heightDp by remember(component.id) { mutableStateOf(component.heightDp.toString()) }
+    var byteOffset by remember(component.id) { mutableStateOf(component.byteOffsetHex) }
+    var onPayload by remember(component.id) { mutableStateOf(component.onPayloadHex) }
+    var offPayload by remember(component.id) { mutableStateOf(component.offPayloadHex) }
+    var bgHex by remember(component.id) { mutableStateOf(component.bgColorHex) }
+    var textHex by remember(component.id) { mutableStateOf(component.textColorHex) }
+    var currentValue by remember(component.id) { mutableStateOf(component.currentValue) }
+    var targetFile by remember(component.id) { mutableStateOf(component.targetFilePath) }
 
     // Directory icon on "Select your main file" selects ANY source file to replace/merge onto Target Path
     val sourceFilePickerLauncher = rememberLauncherForActivityResult(

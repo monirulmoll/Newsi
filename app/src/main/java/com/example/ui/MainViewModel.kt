@@ -81,6 +81,7 @@ data class StudioUiState(
     val showCreateProjectDialog: Boolean = false,
     val editingProject: StudioProjectEntity? = null,
     val showEditFloatingPanelDialog: Boolean = false,
+    val showChangeBackgroundDialog: Boolean = false,
     val showEditCodeDialog: Boolean = false,
     val customEditedKotlinFiles: Map<String, String> = emptyMap(),
     val isBuildingApk: Boolean = false,
@@ -112,13 +113,27 @@ data class StudioUiState(
 class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val appContext = application.applicationContext
+    private val onboardingPrefs = appContext.getSharedPreferences("studio_error_onboarding_prefs", Context.MODE_PRIVATE)
     private val db = AppDatabase.getInstance(appContext)
     private val studioDao = db.studioDao()
     private val auditRepo = ConfigAuditRepository(db.configAuditDao())
     private val stateWriter = LocalConfigStateWriter.getInstance()
 
+    private fun isWelcomeAlreadySeen(): Boolean {
+        return onboardingPrefs.getBoolean("has_completed_welcome_onboarding", false)
+    }
+
+    private fun markWelcomeSeen() {
+        onboardingPrefs.edit().putBoolean("has_completed_welcome_onboarding", true).apply()
+    }
+
     private val _uiState = MutableStateFlow(
         StudioUiState(
+            destination = if (onboardingPrefs.getBoolean("has_completed_welcome_onboarding", false)) {
+                StudioDestination.PROJECT_LAUNCHER
+            } else {
+                StudioDestination.WELCOME_SCREEN
+            },
             hasOverlayPermission = Settings.canDrawOverlays(appContext),
             hasStoragePermission = LocalConfigStateWriter.hasStoragePermissionGranted(appContext),
             ggufModelState = GgufBlueprintEngine.loadOrFallbackToSample(
@@ -208,6 +223,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 canvasWidthDp = DynamicOverlayRegistry.getActiveCanvasWidthDp(),
                 canvasHeightDp = DynamicOverlayRegistry.getActiveCanvasHeightDp(),
                 canvasBgColorHex = DynamicOverlayRegistry.getActiveCanvasBgHex(),
+                canvasBgImagePath = DynamicOverlayRegistry.getActiveCanvasBgImagePath(),
                 autoFixSize = DynamicOverlayRegistry.isActiveAutoFixSize(),
                 defaultTargetFilePath = getDefaultTargetFilePath(projName)
             )
@@ -248,6 +264,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     statusToast = "Running compiled app '$projName' (${standaloneItems.size} widgets)"
                 )
             }
+        } else if (!isWelcomeAlreadySeen()) {
+            // Mark first-time welcome shown so subsequent app launches go directly to App Studio Home
+            markWelcomeSeen()
         }
     }
 
@@ -278,6 +297,97 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun openEditFloatingPanelDialog(show: Boolean) {
         _uiState.update { it.copy(showEditFloatingPanelDialog = show) }
+    }
+
+    fun openChangeBackgroundDialog(show: Boolean) {
+        _uiState.update { it.copy(showChangeBackgroundDialog = show) }
+    }
+
+    /**
+     * Updates the active project's Floating Window Background (solid/glass hex color and/or custom background image)
+     * in Room and live-syncs the overlay registry and running floating window service.
+     */
+    fun updateFloatingWindowBackground(
+        newBgColorHex: String,
+        newBgImagePath: String = _uiState.value.activeProject?.canvasBgImagePath.orEmpty()
+    ) {
+        val currentProject = _uiState.value.activeProject ?: return
+        val rawHex = newBgColorHex.trim().ifEmpty { "#FFFFFF" }
+        val formattedHex = if (rawHex.startsWith("#")) rawHex.uppercase(Locale.US) else "#${rawHex.uppercase(Locale.US)}"
+        val safeHex = try {
+            android.graphics.Color.parseColor(formattedHex)
+            formattedHex
+        } catch (_: Exception) {
+            currentProject.canvasBgColorHex.ifBlank { "#FFFFFF" }
+        }
+        val cleanBgImage = newBgImagePath.trim()
+
+        viewModelScope.launch {
+            val updated = currentProject.copy(
+                canvasBgColorHex = safeHex,
+                canvasBgImagePath = cleanBgImage,
+                updatedAt = System.currentTimeMillis()
+            )
+            studioDao.updateProject(updated)
+            _uiState.update { state ->
+                state.copy(
+                    activeProject = updated,
+                    customEditedKotlinFiles = emptyMap(),
+                    statusToast = if (cleanBgImage.isNotEmpty()) {
+                        "Updated Floating Window Background Image & Color ($safeHex)."
+                    } else {
+                        "Updated Floating Window Background ($safeHex)."
+                    }
+                )
+            }
+            DynamicOverlayRegistry.updateActiveOverlay(
+                updated.overlayTitle.ifBlank { updated.name },
+                updated.floatingLogoPath.ifBlank { updated.appLogoPath },
+                updated.canvasWidthDp,
+                updated.canvasHeightDp,
+                updated.canvasBgColorHex,
+                updated.canvasBgImagePath,
+                updated.autoFixSize,
+                DynamicOverlayRegistry.getActiveItems()
+            )
+            syncOverlayRegistryInBackground(updated)
+            if (_uiState.value.isSystemOverlayRunning && Settings.canDrawOverlays(appContext)) {
+                val refreshIntent = Intent(appContext, FloatingDashboardService::class.java).apply {
+                    action = FloatingDashboardService.ACTION_START_OVERLAY
+                }
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    appContext.startForegroundService(refreshIntent)
+                } else {
+                    appContext.startService(refreshIntent)
+                }
+            }
+        }
+    }
+
+    /**
+     * Copies a user-picked Floating Window Background image from the Android Photo Picker into local app storage
+     * and invokes [onResult] with its absolute file path.
+     */
+    fun importFloatingBackgroundUri(uri: Uri, onResult: (String) -> Unit) {
+        viewModelScope.launch {
+            try {
+                val destPath = withContext(Dispatchers.IO) {
+                    val bgDir = File(appContext.filesDir, "project_backgrounds").apply { mkdirs() }
+                    val destFile = File(bgDir, "canvas_bg_${System.currentTimeMillis()}.png")
+                    appContext.contentResolver.openInputStream(uri)?.use { input ->
+                        FileOutputStream(destFile).use { output ->
+                            input.copyTo(output)
+                        }
+                    }
+                    destFile.absolutePath
+                }
+                onResult(destPath)
+            } catch (e: Exception) {
+                _uiState.update {
+                    it.copy(statusToast = "Could not load background image: ${e.message}")
+                }
+            }
+        }
     }
 
     /**
@@ -312,6 +422,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 updated.canvasWidthDp,
                 updated.canvasHeightDp,
                 updated.canvasBgColorHex,
+                updated.canvasBgImagePath,
                 updated.autoFixSize,
                 DynamicOverlayRegistry.getActiveItems()
             )
@@ -760,7 +871,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private suspend fun syncOverlayRegistryInBackground(projectOverride: StudioProjectEntity? = null) {
         val project = projectOverride ?: _uiState.value.activeProject ?: return
-        val list = studioDao.getComponentsForProjectSync(project.id)
+        val list = if (_uiState.value.isBundledStandaloneApk) {
+            _bundledStandaloneComponents.value
+        } else {
+            studioDao.getComponentsForProjectSync(project.id)
+        }
         val specs = list.map { comp ->
             DynamicOverlayRegistry.OverlayItemSpec().apply {
                 id = comp.id
@@ -787,31 +902,21 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
         DynamicOverlayRegistry.updateActiveOverlay(
-            project.overlayTitle,
-            project.floatingLogoPath,
+            project.overlayTitle.ifBlank { project.name },
+            project.floatingLogoPath.ifBlank { project.appLogoPath },
             project.canvasWidthDp,
             project.canvasHeightDp,
             project.canvasBgColorHex,
+            project.canvasBgImagePath,
             project.autoFixSize,
             specs
         )
     }
 
     fun updateComponent(updated: CanvasComponentEntity) {
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.IO) {
             studioDao.updateComponent(updated)
-            val currentProj = _uiState.value.activeProject
-            val updatedProj = currentProj?.copy(updatedAt = System.currentTimeMillis())
-            if (updatedProj != null) {
-                studioDao.updateProject(updatedProj)
-            }
-            syncOverlayRegistryInBackground(updatedProj)
-            _uiState.update { state ->
-                state.copy(
-                    activeProject = updatedProj ?: state.activeProject,
-                    customEditedKotlinFiles = emptyMap()
-                )
-            }
+            syncOverlayRegistryInBackground()
         }
     }
 
@@ -1175,7 +1280,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         val updatedComp = component.copy(currentValue = nextCurrentVal)
-        updateComponent(updatedComp)
+        if (_uiState.value.isBundledStandaloneApk) {
+            _bundledStandaloneComponents.update { list ->
+                list.map { if (it.id == updatedComp.id) updatedComp else it }
+            }
+        } else {
+            updateComponent(updatedComp)
+        }
 
         viewModelScope.launch(Dispatchers.IO) {
             studioDao.updateComponent(updatedComp)
@@ -1265,7 +1376,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
 
-        val components = activeComponents.value
+        val components = if (_uiState.value.isBundledStandaloneApk) {
+            _bundledStandaloneComponents.value
+        } else {
+            activeComponents.value
+        }
         val specs = components.map { comp ->
             DynamicOverlayRegistry.OverlayItemSpec().apply {
                 id = comp.id
@@ -1293,11 +1408,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         DynamicOverlayRegistry.updateActiveOverlay(
-            project.overlayTitle,
-            project.floatingLogoPath,
+            project.overlayTitle.ifBlank { project.name },
+            project.floatingLogoPath.ifBlank { project.appLogoPath },
             project.canvasWidthDp,
             project.canvasHeightDp,
             project.canvasBgColorHex,
+            project.canvasBgImagePath,
             project.autoFixSize,
             specs
         )
@@ -1505,11 +1621,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     }
                 }
                 DynamicOverlayRegistry.updateActiveOverlay(
-                    project.overlayTitle,
-                    project.floatingLogoPath,
+                    project.overlayTitle.ifBlank { project.name },
+                    project.floatingLogoPath.ifBlank { project.appLogoPath },
                     project.canvasWidthDp,
                     project.canvasHeightDp,
                     project.canvasBgColorHex,
+                    project.canvasBgImagePath,
                     project.autoFixSize,
                     latestSpecs
                 )
@@ -1792,10 +1909,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun navigateBackToWelcome() {
+        markWelcomeSeen()
         _uiState.update {
             it.copy(
-                destination = StudioDestination.WELCOME_SCREEN,
-                statusToast = "Welcome to App Studio"
+                destination = StudioDestination.PROJECT_LAUNCHER,
+                statusToast = "App Studio Home"
             )
         }
     }
@@ -1804,6 +1922,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
      * Opens Offline Manual Mode (StudioProjectLauncherScreen).
      */
     fun openOfflineManualMode() {
+        markWelcomeSeen()
         _uiState.update {
             it.copy(
                 destination = StudioDestination.PROJECT_LAUNCHER,
@@ -1821,6 +1940,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
      * Uses the in-app configurable Termux Server (Host, Port, URL).
      */
     fun openOnlineAiMode() {
+        markWelcomeSeen()
         val currentServer = _uiState.value.termuxServerConfig
         _uiState.update {
             it.copy(
